@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 // Config configures an MCP server
@@ -186,5 +189,130 @@ func formatResultAsContent(result interface{}) []map[string]interface{} {
 			"text": string(jsonBytes),
 		},
 	}
+}
+
+// RegisterToolsFromJSON registers tools from JSON data
+func (s *Server) RegisterToolsFromJSON(toolsData, handlersData []byte) error {
+	// Parse tools
+	tools, err := parseToolsFromJSON(toolsData)
+	if err != nil {
+		return fmt.Errorf("failed to parse tools JSON: %w", err)
+	}
+
+	// Parse handlers
+	handlersConfig, err := parseHandlersFromJSON(handlersData)
+	if err != nil {
+		return fmt.Errorf("failed to parse handlers JSON: %w", err)
+	}
+
+	return s.registerToolsFromConfig(tools, handlersConfig)
+}
+
+// RegisterToolsFromYAML registers tools from YAML data
+func (s *Server) RegisterToolsFromYAML(toolsData, handlersData []byte) error {
+	// Parse tools
+	tools, err := parseToolsFromYAML(toolsData)
+	if err != nil {
+		return fmt.Errorf("failed to parse tools YAML: %w", err)
+	}
+
+	// Parse handlers
+	handlersConfig, err := parseHandlersFromYAML(handlersData)
+	if err != nil {
+		return fmt.Errorf("failed to parse handlers YAML: %w", err)
+	}
+
+	return s.registerToolsFromConfig(tools, handlersConfig)
+}
+
+// RegisterToolsFromFiles registers tools from files (auto-detects format)
+func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
+	// Read tools file
+	toolsData, err := os.ReadFile(toolsFile)
+	if err != nil {
+		return fmt.Errorf("failed to read tools file %s: %w", toolsFile, err)
+	}
+
+	// Read handlers file
+	handlersData, err := os.ReadFile(handlersFile)
+	if err != nil {
+		return fmt.Errorf("failed to read handlers file %s: %w", handlersFile, err)
+	}
+
+	// Detect format from file extension
+	toolsExt := strings.ToLower(filepath.Ext(toolsFile))
+	handlersExt := strings.ToLower(filepath.Ext(handlersFile))
+
+	// Parse tools based on format
+	var tools []ToolFile
+	if toolsExt == ".yaml" || toolsExt == ".yml" {
+		tools, err = parseToolsFromYAML(toolsData)
+	} else {
+		tools, err = parseToolsFromJSON(toolsData)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to parse tools file: %w", err)
+	}
+
+	// Parse handlers based on format
+	var handlersConfig *HandlersConfig
+	if handlersExt == ".yaml" || handlersExt == ".yml" {
+		handlersConfig, err = parseHandlersFromYAML(handlersData)
+	} else {
+		handlersConfig, err = parseHandlersFromJSON(handlersData)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to parse handlers file: %w", err)
+	}
+
+	return s.registerToolsFromConfig(tools, handlersConfig)
+}
+
+// registerToolsFromConfig registers tools from parsed configuration
+func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *HandlersConfig) error {
+	// Validate handlers config
+	if handlersConfig == nil {
+		return fmt.Errorf("handlers configuration is nil")
+	}
+
+	// Register each tool
+	for _, toolFile := range tools {
+		// Validate tool
+		if toolFile.Name == "" {
+			return fmt.Errorf("tool name cannot be empty")
+		}
+
+		// Get handler config
+		handlerConfig, exists := handlersConfig.Handlers[toolFile.Name]
+		if !exists {
+			return fmt.Errorf("handler configuration not found for tool: %s", toolFile.Name)
+		}
+
+		// Get service config
+		if toolFile.ServiceName == "" {
+			return fmt.Errorf("service name is required for tool: %s", toolFile.Name)
+		}
+
+		serviceConfig, exists := handlersConfig.ServiceConfig[toolFile.ServiceName]
+		if !exists {
+			return fmt.Errorf("service configuration not found for service: %s (tool: %s)", toolFile.ServiceName, toolFile.Name)
+		}
+
+		// Generate HTTP handler
+		handler, err := generateHTTPHandler(toolFile, handlerConfig, serviceConfig)
+		if err != nil {
+			return fmt.Errorf("failed to generate handler for tool %s: %w", toolFile.Name, err)
+		}
+
+		// Convert ToolFile to Tool
+		tool := toolFile.ToTool()
+
+		// Register tool
+		if err := s.RegisterTool(toolFile.Name, tool, handler); err != nil {
+			return fmt.Errorf("failed to register tool %s: %w", toolFile.Name, err)
+		}
+	}
+
+	return nil
 }
 

@@ -1,0 +1,27 @@
+serviceConfig:
+  greeting-service:
+    baseURL: https://api.example.com
+    timeout: 30s
+    headers:
+      Content-Type: application/json
+      Accept: application/json
+      X-API-Key: ${API_KEY}
+
+handlers:
+  greet:
+    type: http
+    method: POST
+    path: /api/v1/greet
+    headers:
+      X-Request-ID: ${REQUEST_ID}
+      X-Client-Version: "1.0.0"
+    timeout: 5s
+  hello:
+    type: http
+    method: POST
+    path: /api/v1/hello
+    headers:
+      X-Feature-Flag: new-hello-endpoint
+      X-Request-ID: ${REQUEST_ID}
+    timeout: 15s
+

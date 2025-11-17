@@ -7,6 +7,10 @@
 *.test
 *.out
 
+# Build artifacts
+*-server
+simple-server
+
 # Go workspace file
 go.work
 

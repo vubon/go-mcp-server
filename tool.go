@@ -4,9 +4,12 @@ import "context"
 
 // Tool represents an MCP tool
 type Tool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	InputSchema map[string]interface{} `json:"inputSchema"`
+	Name        string                 `json:"name" yaml:"name"`
+	Description string                 `json:"description" yaml:"description"`
+	ServiceName string                 `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
+	APIVersion  string                 `json:"apiVersion,omitempty" yaml:"apiVersion,omitempty"`
+	Endpoint    string                 `json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
+	InputSchema map[string]interface{} `json:"inputSchema" yaml:"inputSchema"`
 }
 
 // ToolHandler is a function that handles a tool call
