@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/vubon/go-mcp-server"
+	"github.com/vubon/go-mcp-server/auth"
 )
 
 // HTTPTransport handles HTTP requests for MCP server
@@ -49,8 +50,14 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Log request (excluding sensitive data)
 	log.Printf("📥 JSON-RPC request: method=%s, id=%v", req.Method, req.ID)
 
-	// Handle request
-	resp := t.server.HandleRequest(r.Context(), &req)
+	// Extract Authorization header and add to context
+	ctx := r.Context()
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		ctx = auth.WithAuthorization(ctx, authHeader)
+	}
+
+	// Handle request with enhanced context
+	resp := t.server.HandleRequest(ctx, &req)
 
 	// Notifications (like "initialized") don't require a response
 	if resp == nil {
