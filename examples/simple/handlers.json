@@ -9,7 +9,8 @@
         "X-API-Key": "${API_KEY}"
       },
       "authorization": {
-        "strategy": "pass-through"
+        "strategy": "pass-through",
+        "headerName": "X-API-Key"
       }
     }
   },

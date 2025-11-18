@@ -8,6 +8,7 @@ serviceConfig:
       X-API-Key: ${API_KEY}
     authorization:
       strategy: pass-through
+      headerName: X-API-Key  # Write incoming Authorization value to X-API-Key header in backend request
 
 handlers:
   greet:
