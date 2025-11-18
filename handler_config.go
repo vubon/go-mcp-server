@@ -182,10 +182,15 @@ func transformAuthorization(authHeader string, transform *TransformConfig) strin
 	}
 	
 	// Simple prefix transformation
-	if transform.FromPrefix != "" && transform.ToPrefix != "" {
+	if transform.FromPrefix != "" {
 		prefix := transform.FromPrefix + " "
 		if strings.HasPrefix(authHeader, prefix) {
 			token := strings.TrimPrefix(authHeader, prefix)
+			// If ToPrefix is empty, return just the token (no prefix)
+			if transform.ToPrefix == "" {
+				return token
+			}
+			// Otherwise, add the ToPrefix
 			return transform.ToPrefix + " " + token
 		}
 	}

@@ -233,6 +233,65 @@ func TestAuthorization_StaticStrategy(t *testing.T) {
 	}
 }
 
+func TestAuthorization_TransformEmptyPrefix(t *testing.T) {
+	// Create a mock backend that expects just the token (no prefix)
+	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiKey := r.Header.Get("X-API-Key")
+		if apiKey == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"apiKey": apiKey,
+		})
+	}))
+	defer mockBackend.Close()
+
+	tool := ToolFile{
+		Name:        "test_tool",
+		Description: "Test",
+		ServiceName: "test-service",
+		InputSchema: map[string]interface{}{"type": "object"},
+	}
+
+	handlerConfig := HandlerConfig{
+		Type:   "http",
+		Method: "POST",
+		Path:   "/test",
+		Authorization: &AuthorizationConfig{
+			Strategy:  "transform",
+			HeaderName: "X-API-Key",
+			Transform: &TransformConfig{
+				FromPrefix: "Bearer",
+				ToPrefix:   "", // Empty = just the token, no prefix
+			},
+		},
+	}
+
+	serviceConfig := ServiceConfig{
+		BaseURL: mockBackend.URL,
+	}
+
+	handler, err := generateHTTPHandler(tool, handlerConfig, serviceConfig)
+	if err != nil {
+		t.Fatalf("Failed to generate handler: %v", err)
+	}
+
+	ctx := context.Background()
+	ctx = auth.WithAuthorization(ctx, "Bearer token123")
+
+	result, err := handler(ctx, map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Handler failed: %v", err)
+	}
+
+	resultMap := result.(map[string]interface{})
+	// Should be just "token123" without any prefix
+	if resultMap["apiKey"] != "token123" {
+		t.Errorf("Expected just token without prefix, got %v", resultMap["apiKey"])
+	}
+}
+
 func TestAuthorization_NoneStrategy(t *testing.T) {
 	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
