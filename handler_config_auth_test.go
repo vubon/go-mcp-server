@@ -69,7 +69,7 @@ func TestExtractAuthorization_PassThrough(t *testing.T) {
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{
-		Strategy: "pass-through",
+		Strategy: StrategyPassThrough,
 	}
 
 	result := extractAuthorization(ctx, config, nil)
@@ -84,7 +84,7 @@ func TestExtractAuthorization_Transform(t *testing.T) {
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{
-		Strategy: "transform",
+		Strategy: StrategyTransform,
 		Transform: &TransformConfig{
 			FromPrefix: "Bearer",
 			ToPrefix:   "ApiKey",
@@ -103,7 +103,7 @@ func TestExtractAuthorization_Static(t *testing.T) {
 
 	// Test static value
 	config := &AuthorizationConfig{
-		Strategy:   "static",
+		Strategy:   StrategyStatic,
 		StaticValue: "Bearer static-token",
 	}
 
@@ -133,7 +133,7 @@ func TestExtractAuthorization_None(t *testing.T) {
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{
-		Strategy: "none",
+		Strategy: StrategyNone,
 	}
 
 	result := extractAuthorization(ctx, config, nil)
@@ -161,7 +161,7 @@ func TestExtractAuthorization_ServiceConfig(t *testing.T) {
 
 	// Service config with pass-through
 	serviceConfig := &AuthorizationConfig{
-		Strategy: "pass-through",
+		Strategy: StrategyPassThrough,
 	}
 
 	// No handler config - should use service config
@@ -177,11 +177,11 @@ func TestExtractAuthorization_HandlerOverridesService(t *testing.T) {
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	serviceConfig := &AuthorizationConfig{
-		Strategy: "pass-through",
+		Strategy: StrategyPassThrough,
 	}
 
 	handlerConfig := &AuthorizationConfig{
-		Strategy: "none",
+		Strategy: StrategyNone,
 	}
 
 	// Handler config should override service config
@@ -211,7 +211,7 @@ func TestExtractAuthorization_NoAuthInContext(t *testing.T) {
 	ctx := context.Background()
 
 	config := &AuthorizationConfig{
-		Strategy: "pass-through",
+		Strategy: StrategyPassThrough,
 	}
 
 	result := extractAuthorization(ctx, config, nil)
