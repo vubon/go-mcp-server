@@ -39,6 +39,18 @@ func TestTransformAuthorization(t *testing.T) {
 			transform: &TransformConfig{},
 			expected:  "Bearer token123",
 		},
+		{
+			name:      "Empty ToPrefix removes prefix (just token)",
+			header:    "Bearer token123",
+			transform: &TransformConfig{FromPrefix: "Bearer", ToPrefix: ""},
+			expected:  "token123",
+		},
+		{
+			name:      "Empty ToPrefix with non-Bearer prefix",
+			header:    "Basic user:pass",
+			transform: &TransformConfig{FromPrefix: "Basic", ToPrefix: ""},
+			expected:  "user:pass",
+		},
 	}
 
 	for _, tt := range tests {
