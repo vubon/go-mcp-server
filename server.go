@@ -9,11 +9,21 @@ import (
 	"strings"
 )
 
+// Constants for MCP protocol
+const (
+	DefaultProtocolVersion = "2024-11-05"
+	JSONRPCVersion         = "2.0"
+	ContentTypeText        = "text"
+	ContentTypeJSON        = "application/json"
+	YAMLExtension          = ".yaml"
+	YMLExtension           = ".yml"
+)
+
 // Config configures an MCP server
 type Config struct {
 	Name            string
 	Version         string
-	ProtocolVersion string // default: "2024-11-05"
+	ProtocolVersion string // default: DefaultProtocolVersion
 }
 
 // Server handles MCP tool calls
@@ -26,7 +36,7 @@ type Server struct {
 // New creates a new MCP server
 func New(config *Config) *Server {
 	if config.ProtocolVersion == "" {
-		config.ProtocolVersion = "2024-11-05"
+		config.ProtocolVersion = DefaultProtocolVersion
 	}
 
 	return &Server{
@@ -64,9 +74,9 @@ func (s *Server) ListTools() []Tool {
 
 // HandleRequest processes a JSON-RPC request
 func (s *Server) HandleRequest(ctx context.Context, req *Request) *Response {
-	if req.JSONRPC != "2.0" {
+	if req.JSONRPC != JSONRPCVersion {
 		return &Response{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Error: &Error{
 				Code:    -32600,
 				Message: "Invalid Request",
@@ -87,7 +97,7 @@ func (s *Server) HandleRequest(ctx context.Context, req *Request) *Response {
 		return s.handleToolCall(ctx, req)
 	default:
 		return &Response{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Error: &Error{
 				Code:    -32601,
 				Message: "Method not found",
@@ -99,7 +109,7 @@ func (s *Server) HandleRequest(ctx context.Context, req *Request) *Response {
 
 func (s *Server) handleInitialize(id interface{}) *Response {
 	return &Response{
-		JSONRPC: "2.0",
+		JSONRPC: JSONRPCVersion,
 		Result: map[string]interface{}{
 			"protocolVersion": s.config.ProtocolVersion,
 			"capabilities": map[string]interface{}{
@@ -118,7 +128,7 @@ func (s *Server) handleInitialize(id interface{}) *Response {
 
 func (s *Server) handleListTools(id interface{}) *Response {
 	return &Response{
-		JSONRPC: "2.0",
+		JSONRPC: JSONRPCVersion,
 		Result: map[string]interface{}{
 			"tools": s.ListTools(),
 		},
@@ -130,7 +140,7 @@ func (s *Server) handleToolCall(ctx context.Context, req *Request) *Response {
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
 		return &Response{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Error: &Error{
 				Code:    -32602,
 				Message: "Invalid params",
@@ -143,7 +153,7 @@ func (s *Server) handleToolCall(ctx context.Context, req *Request) *Response {
 	handler, exists := s.handlers[params.Name]
 	if !exists {
 		return &Response{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Error: &Error{
 				Code:    -32601,
 				Message: fmt.Sprintf("Tool not found: %s", params.Name),
@@ -155,7 +165,7 @@ func (s *Server) handleToolCall(ctx context.Context, req *Request) *Response {
 	result, err := handler(ctx, params.Arguments)
 	if err != nil {
 		return &Response{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Error: &Error{
 				Code:    -32000,
 				Message: "Server error",
@@ -168,7 +178,7 @@ func (s *Server) handleToolCall(ctx context.Context, req *Request) *Response {
 	// Format result as MCP content array
 	content := formatResultAsContent(result)
 	return &Response{
-		JSONRPC: "2.0",
+		JSONRPC: JSONRPCVersion,
 		Result: map[string]interface{}{
 			"content": content,
 		},
@@ -185,7 +195,7 @@ func formatResultAsContent(result interface{}) []map[string]interface{} {
 
 	return []map[string]interface{}{
 		{
-			"type": "text",
+			"type": ContentTypeText,
 			"text": string(jsonBytes),
 		},
 	}
@@ -245,7 +255,7 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 
 	// Parse tools based on format
 	var tools []ToolFile
-	if toolsExt == ".yaml" || toolsExt == ".yml" {
+	if toolsExt == YAMLExtension || toolsExt == YMLExtension {
 		tools, err = parseToolsFromYAML(toolsData)
 	} else {
 		tools, err = parseToolsFromJSON(toolsData)
@@ -256,7 +266,7 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 
 	// Parse handlers based on format
 	var handlersConfig *HandlersConfig
-	if handlersExt == ".yaml" || handlersExt == ".yml" {
+	if handlersExt == YAMLExtension || handlersExt == YMLExtension {
 		handlersConfig, err = parseHandlersFromYAML(handlersData)
 	} else {
 		handlersConfig, err = parseHandlersFromJSON(handlersData)
@@ -268,7 +278,7 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 	return s.registerToolsFromConfig(tools, handlersConfig)
 }
 
-// registerToolsFromConfig registers tools from parsed configuration
+// registerToolsFromConfig registers tools from parsed configuration.
 func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *HandlersConfig) error {
 	// Validate handlers config
 	if handlersConfig == nil {
@@ -295,11 +305,14 @@ func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *Handl
 
 		serviceConfig, exists := handlersConfig.ServiceConfig[toolFile.ServiceName]
 		if !exists {
-			return fmt.Errorf("service configuration not found for service: %s (tool: %s)", toolFile.ServiceName, toolFile.Name)
+			return fmt.Errorf(
+				"service configuration not found for service: %s (tool: %s)",
+				toolFile.ServiceName, toolFile.Name,
+			)
 		}
 
 		// Generate HTTP handler
-		handler, err := generateHTTPHandler(toolFile, handlerConfig, serviceConfig)
+		handler, err := generateHTTPHandler(&toolFile, handlerConfig, serviceConfig)
 		if err != nil {
 			return fmt.Errorf("failed to generate handler for tool %s: %w", toolFile.Name, err)
 		}

@@ -139,7 +139,7 @@ func TestHTTPTransport_ServeHTTP_ValidRequest(t *testing.T) {
 
 	// Create a valid JSON-RPC request
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      1,
 	}
@@ -159,8 +159,8 @@ func TestHTTPTransport_ServeHTTP_ValidRequest(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if resp.JSONRPC != "2.0" {
-		t.Errorf("Expected JSONRPC '2.0', got %s", resp.JSONRPC)
+	if resp.JSONRPC != mcpserver.JSONRPCVersion {
+		t.Errorf("Expected JSONRPC %q, got %s", mcpserver.JSONRPCVersion, resp.JSONRPC)
 	}
 	// ID is interface{}, JSON unmarshals numbers as float64
 	if resp.ID != float64(1) && resp.ID != 1 {
@@ -181,7 +181,7 @@ func TestHTTPTransport_ServeHTTP_WithAuthorization(t *testing.T) {
 
 	// Create a valid JSON-RPC request
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      1,
 	}
@@ -219,7 +219,7 @@ func TestHTTPTransport_ServeHTTP_Notification(t *testing.T) {
 
 	// Create a notification request (no ID)
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "initialized",
 		ID:      nil,
 	}
@@ -250,7 +250,7 @@ func TestHTTPTransport_ServeHTTP_ErrorResponse(t *testing.T) {
 
 	// Create a request with invalid method
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "invalid/method",
 		ID:      1,
 	}
@@ -287,7 +287,7 @@ func TestHTTPTransport_ServeHTTP_ContentType(t *testing.T) {
 	transport := NewHTTP(server)
 
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      1,
 	}
@@ -299,8 +299,8 @@ func TestHTTPTransport_ServeHTTP_ContentType(t *testing.T) {
 	transport.ServeHTTP(w, req)
 
 	contentType := w.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got %s", contentType)
+	if contentType != mcpserver.ContentTypeJSON {
+		t.Errorf("Expected Content-Type %q, got %s", mcpserver.ContentTypeJSON, contentType)
 	}
 }
 
@@ -314,8 +314,8 @@ func TestRespondError(t *testing.T) {
 	}
 
 	contentType := w.Header().Get("Content-Type")
-	if contentType != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got %s", contentType)
+	if contentType != mcpserver.ContentTypeJSON {
+		t.Errorf("Expected Content-Type %q, got %s", mcpserver.ContentTypeJSON, contentType)
 	}
 
 	var resp mcpserver.Response
@@ -323,8 +323,8 @@ func TestRespondError(t *testing.T) {
 		t.Fatalf("Failed to decode response: %v", err)
 	}
 
-	if resp.JSONRPC != "2.0" {
-		t.Errorf("Expected JSONRPC '2.0', got %s", resp.JSONRPC)
+	if resp.JSONRPC != mcpserver.JSONRPCVersion {
+		t.Errorf("Expected JSONRPC %q, got %s", mcpserver.JSONRPCVersion, resp.JSONRPC)
 	}
 	if resp.Error == nil {
 		t.Error("Expected error in response")
@@ -366,7 +366,7 @@ func TestHTTPTransport_AuthorizationContext(t *testing.T) {
 	transport := NewHTTP(server)
 
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/call",
 		ID:      1,
 		Params:  json.RawMessage(`{"name": "test_auth", "arguments": {}}`),

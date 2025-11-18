@@ -67,7 +67,7 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 			}
 
 			line := scanner.Bytes()
-			if len(line) == 0 {
+			if string(line) == "" {
 				continue // Skip empty lines
 			}
 
@@ -76,7 +76,7 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 			if err := json.Unmarshal(line, &req); err != nil {
 				// Send error response
 				resp := &mcpserver.Response{
-					JSONRPC: "2.0",
+					JSONRPC: mcpserver.JSONRPCVersion,
 					Error: &mcpserver.Error{
 						Code:    -32700,
 						Message: "Parse error",
