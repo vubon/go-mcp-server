@@ -366,6 +366,158 @@ handlers:
 5. **Timeout Strategy**: Set service-level default, override per tool if needed
 6. **Path Override**: Use handler `path` to override tool `Endpoint` when needed
 
+### Authorization Header Pass-Through
+
+The MCP server can automatically pass Authorization headers from incoming HTTP requests to backend services. This enables seamless authentication propagation without writing custom code.
+
+#### How It Works
+
+1. **HTTP Transport** extracts the `Authorization` header from incoming requests
+2. **Context Propagation** passes the header through the request context
+3. **Handler Generation** applies authorization based on configuration
+4. **Backend Request** includes the authorization header in the HTTP call
+
+#### Authorization Strategies
+
+**1. Pass-Through (Default)**
+Passes the incoming Authorization header as-is to the backend service.
+
+```yaml
+handlers:
+  get_user:
+    type: http
+    method: GET
+    path: /api/v1/users/{userId}
+    # No authorization config = pass-through by default
+```
+
+Or explicitly:
+```yaml
+handlers:
+  get_user:
+    authorization:
+      strategy: pass-through
+```
+
+**2. Transform**
+Transforms the authorization header format (e.g., Bearer → ApiKey).
+
+```yaml
+handlers:
+  get_user:
+    type: http
+    method: GET
+    path: /api/v1/users/{userId}
+    authorization:
+      strategy: transform
+      headerName: X-API-Key
+      transform:
+        fromPrefix: Bearer
+        toPrefix: ApiKey
+```
+
+**3. Static**
+Uses a static authorization value from configuration or environment variable.
+
+```yaml
+handlers:
+  get_user:
+    type: http
+    method: GET
+    path: /api/v1/users/{userId}
+    authorization:
+      strategy: static
+      staticValueEnv: BACKEND_API_KEY
+      # or
+      # staticValue: "Bearer static-token"
+```
+
+**4. None**
+Explicitly does not add an Authorization header.
+
+```yaml
+handlers:
+  get_user:
+    type: http
+    method: GET
+    path: /api/v1/users/{userId}
+    authorization:
+      strategy: none
+```
+
+#### Service-Level Configuration
+
+You can set authorization defaults at the service level:
+
+```yaml
+serviceConfig:
+  user-service:
+    baseURL: https://api.example.com
+    authorization:
+      strategy: pass-through
+      headerName: Authorization
+
+handlers:
+  get_user:
+    type: http
+    method: GET
+    path: /api/v1/users/{userId}
+    # Inherits service-level authorization config
+```
+
+#### Configuration Resolution
+
+Authorization configuration is resolved in this order:
+1. **Handler-level** authorization config (highest priority)
+2. **Service-level** authorization config
+3. **Default** pass-through behavior (if Authorization header is available)
+
+#### Security Best Practices
+
+1. **Never Log Authorization Headers**: The package automatically excludes Authorization headers from logs
+2. **Use Environment Variables**: Store sensitive tokens in environment variables, not in config files
+3. **Transform When Needed**: Use transform strategy to convert between different auth formats
+4. **Validate Backend Responses**: Always validate responses from backend services
+
+#### Example: Complete Authorization Setup
+
+```yaml
+serviceConfig:
+  user-service:
+    baseURL: https://api.example.com
+    authorization:
+      strategy: pass-through
+      headerName: Authorization
+
+handlers:
+  # Inherits service-level pass-through
+  get_user:
+    type: http
+    method: GET
+    path: /api/v1/users/{userId}
+  
+  # Overrides with transform
+  create_user:
+    type: http
+    method: POST
+    path: /api/v1/users
+    authorization:
+      strategy: transform
+      headerName: X-API-Key
+      transform:
+        fromPrefix: Bearer
+        toPrefix: ApiKey
+  
+  # Uses static token
+  admin_action:
+    type: http
+    method: POST
+    path: /api/v1/admin/action
+    authorization:
+      strategy: static
+      staticValueEnv: ADMIN_API_KEY
+```
+
 ### Error Handling
 
 The registration will fail with clear error messages if:

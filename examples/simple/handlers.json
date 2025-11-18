@@ -7,6 +7,9 @@
         "Content-Type": "application/json",
         "Accept": "application/json",
         "X-API-Key": "${API_KEY}"
+      },
+      "authorization": {
+        "strategy": "pass-through"
       }
     }
   },

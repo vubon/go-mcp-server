@@ -8,25 +8,61 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/vubon/go-mcp-server/auth"
 	"gopkg.in/yaml.v3"
 )
 
+// TransformConfig represents configuration for authorization header transformation
+type TransformConfig struct {
+	// Transform Bearer token to different format
+	FromPrefix string `json:"fromPrefix,omitempty" yaml:"fromPrefix,omitempty"` // e.g., "Bearer"
+	ToPrefix   string `json:"toPrefix,omitempty" yaml:"toPrefix,omitempty"`     // e.g., "ApiKey"
+	
+	// Or custom transformation function name
+	Function string `json:"function,omitempty" yaml:"function,omitempty"`
+}
+
+// AuthorizationConfig represents authorization configuration for handlers or services
+type AuthorizationConfig struct {
+	// Strategy: "pass-through", "transform", "static", "none"
+	// - "pass-through": use incoming Authorization header as-is
+	// - "transform": transform the header (e.g., Bearer -> API-Key)
+	// - "static": use static value from config
+	// - "none": don't add Authorization header
+	Strategy string `json:"strategy" yaml:"strategy"`
+	
+	// Header name to use (default: "Authorization")
+	HeaderName string `json:"headerName,omitempty" yaml:"headerName,omitempty"`
+	
+	// For "transform" strategy: transformation rules
+	Transform *TransformConfig `json:"transform,omitempty" yaml:"transform,omitempty"`
+	
+	// For "static" strategy: static value
+	StaticValue string `json:"staticValue,omitempty" yaml:"staticValue,omitempty"`
+	
+	// Environment variable for static value
+	StaticValueEnv string `json:"staticValueEnv,omitempty" yaml:"staticValueEnv,omitempty"`
+}
+
 // ServiceConfig represents configuration for a service
 type ServiceConfig struct {
-	BaseURL string            `json:"baseURL" yaml:"baseURL"`
-	Timeout string            `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
+	BaseURL       string                 `json:"baseURL" yaml:"baseURL"`
+	Timeout       string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Headers       map[string]string      `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Authorization *AuthorizationConfig   `json:"authorization,omitempty" yaml:"authorization,omitempty"`
 }
 
 // HandlerConfig represents configuration for a handler
 type HandlerConfig struct {
-	Type    string            `json:"type" yaml:"type"`
-	Method  string            `json:"method" yaml:"method"`
-	Path    string            `json:"path" yaml:"path"`
-	Headers map[string]string `json:"headers,omitempty" yaml:"headers,omitempty"`
-	Timeout string            `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Type          string                 `json:"type" yaml:"type"`
+	Method        string                 `json:"method" yaml:"method"`
+	Path          string                 `json:"path" yaml:"path"`
+	Headers       map[string]string      `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Timeout       string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Authorization *AuthorizationConfig   `json:"authorization,omitempty" yaml:"authorization,omitempty"`
 }
 
 // HandlersConfig represents the complete handlers configuration
@@ -139,6 +175,75 @@ func parseTimeout(timeoutStr string, defaultTimeout time.Duration) time.Duration
 	return duration
 }
 
+// transformAuthorization transforms an authorization header based on transform configuration
+func transformAuthorization(authHeader string, transform *TransformConfig) string {
+	if transform == nil {
+		return authHeader
+	}
+	
+	// Simple prefix transformation
+	if transform.FromPrefix != "" && transform.ToPrefix != "" {
+		prefix := transform.FromPrefix + " "
+		if strings.HasPrefix(authHeader, prefix) {
+			token := strings.TrimPrefix(authHeader, prefix)
+			return transform.ToPrefix + " " + token
+		}
+	}
+	
+	return authHeader
+}
+
+// extractAuthorization extracts and processes authorization header based on configuration
+// Resolution order: handler config > service config > default (pass-through)
+func extractAuthorization(ctx context.Context, handlerConfig *AuthorizationConfig, serviceConfig *AuthorizationConfig) string {
+	// Determine which config to use (handler overrides service)
+	config := handlerConfig
+	if config == nil {
+		config = serviceConfig
+	}
+	
+	// If no config, default to pass-through if available
+	if config == nil {
+		if auth, ok := auth.AuthorizationFromContext(ctx); ok {
+			return auth
+		}
+		return ""
+	}
+	
+	switch config.Strategy {
+	case "pass-through":
+		if auth, ok := auth.AuthorizationFromContext(ctx); ok {
+			return auth
+		}
+		return ""
+		
+	case "transform":
+		if auth, ok := auth.AuthorizationFromContext(ctx); ok {
+			return transformAuthorization(auth, config.Transform)
+		}
+		return ""
+		
+	case "static":
+		if config.StaticValue != "" {
+			return config.StaticValue
+		}
+		if config.StaticValueEnv != "" {
+			return os.Getenv(config.StaticValueEnv)
+		}
+		return ""
+		
+	case "none":
+		return ""
+		
+	default:
+		// Unknown strategy, fallback to pass-through
+		if auth, ok := auth.AuthorizationFromContext(ctx); ok {
+			return auth
+		}
+		return ""
+	}
+}
+
 // generateHTTPHandler creates an HTTP handler function from tool and handler configuration
 func generateHTTPHandler(tool ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) (ToolHandler, error) {
 	// Validate handler type
@@ -202,6 +307,21 @@ func generateHTTPHandler(tool ToolFile, handlerConfig HandlerConfig, serviceConf
 		// Set headers
 		for k, v := range mergedHeaders {
 			req.Header.Set(k, v)
+		}
+
+		// Extract and apply authorization header
+		authHeader := extractAuthorization(ctx, handlerConfig.Authorization, serviceConfig.Authorization)
+		if authHeader != "" {
+			headerName := "Authorization"
+			// Determine which config to use for header name
+			config := handlerConfig.Authorization
+			if config == nil {
+				config = serviceConfig.Authorization
+			}
+			if config != nil && config.HeaderName != "" {
+				headerName = config.HeaderName
+			}
+			req.Header.Set(headerName, authHeader)
 		}
 
 		// Make HTTP request
