@@ -62,4 +62,3 @@ func main() {
 	log.Printf("📡 JSON-RPC endpoint: http://localhost:%s/jsonrpc", port)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
-

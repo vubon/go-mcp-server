@@ -46,7 +46,7 @@ func (t *StdioTransport) GetServer() *mcpserver.Server {
 // Run starts the stdio transport and processes requests from stdin
 func (t *StdioTransport) Run(ctx context.Context) error {
 	scanner := bufio.NewScanner(t.input)
-	
+
 	// Use a custom split function to handle JSON-RPC messages
 	// JSON-RPC messages are typically newline-delimited JSON
 	scanner.Split(bufio.ScanLines)
@@ -122,4 +122,3 @@ func (t *StdioTransport) sendResponse(resp *mcpserver.Response) error {
 
 	return nil
 }
-

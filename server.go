@@ -18,8 +18,8 @@ type Config struct {
 
 // Server handles MCP tool calls
 type Server struct {
-	config  *Config
-	tools   map[string]Tool
+	config   *Config
+	tools    map[string]Tool
 	handlers map[string]ToolHandler
 }
 
@@ -30,8 +30,8 @@ func New(config *Config) *Server {
 	}
 
 	return &Server{
-		config:  config,
-		tools:   make(map[string]Tool),
+		config:   config,
+		tools:    make(map[string]Tool),
 		handlers: make(map[string]ToolHandler),
 	}
 }
@@ -315,4 +315,3 @@ func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *Handl
 
 	return nil
 }
-
