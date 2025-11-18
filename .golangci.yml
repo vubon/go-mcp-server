@@ -2,13 +2,6 @@ run:
   timeout: 5m
   tests: true
 
-issues:
-  exclude-dirs:
-    - examples
-  exclude-files:
-    - ".*\\.pb\\.go$"
-    - ".*_generated\\.go$"
-
 linters-settings:
   errcheck:
     check-type-assertions: true
@@ -94,6 +87,11 @@ linters:
     - whitespace
 
 issues:
+  exclude-dirs:
+    - examples
+  exclude-files:
+    - ".*\\.pb\\.go$"
+    - ".*_generated\\.go$"
   exclude-rules:
     - path: _test\.go
       linters:
