@@ -175,6 +175,60 @@ func parseTimeout(timeoutStr string, defaultTimeout time.Duration) time.Duration
 	return duration
 }
 
+// substitutePathParams substitutes path parameters like {param_name} with values from args
+// Returns the substituted path and a map of removed parameters
+func substitutePathParams(path string, args map[string]interface{}) (string, map[string]interface{}) {
+	result := path
+	removed := make(map[string]interface{})
+	
+	// Find all {param_name} patterns in the path
+	start := 0
+	for {
+		paramStart := strings.Index(result[start:], "{")
+		if paramStart == -1 {
+			break
+		}
+		paramStart += start
+		
+		paramEnd := strings.Index(result[paramStart:], "}")
+		if paramEnd == -1 {
+			break
+		}
+		paramEnd += paramStart
+		
+		// Extract parameter name (without braces)
+		paramName := result[paramStart+1 : paramEnd]
+		
+		// Get value from args
+		if value, exists := args[paramName]; exists {
+			// Convert value to string
+			var valueStr string
+			switch v := value.(type) {
+			case string:
+				valueStr = v
+			case int, int64, float64:
+				valueStr = fmt.Sprintf("%v", v)
+			default:
+				valueStr = fmt.Sprintf("%v", v)
+			}
+			
+			// Substitute in path
+			result = result[:paramStart] + valueStr + result[paramEnd+1:]
+			
+			// Track removed parameter
+			removed[paramName] = value
+			
+			// Continue from after the substituted value
+			start = paramStart + len(valueStr)
+		} else {
+			// Parameter not found in args, skip it
+			start = paramEnd + 1
+		}
+	}
+	
+	return result, removed
+}
+
 // transformAuthorization transforms an authorization header based on transform configuration
 func transformAuthorization(authHeader string, transform *TransformConfig) string {
 	if transform == nil {
@@ -263,16 +317,13 @@ func generateHTTPHandler(tool ToolFile, handlerConfig HandlerConfig, serviceConf
 	}
 
 	// Use handler path if provided, otherwise use tool endpoint
-	path := handlerConfig.Path
-	if path == "" {
-		path = tool.Endpoint
+	pathTemplate := handlerConfig.Path
+	if pathTemplate == "" {
+		pathTemplate = tool.Endpoint
 	}
-	if path == "" {
+	if pathTemplate == "" {
 		return nil, fmt.Errorf("path or endpoint is required for tool %s", tool.Name)
 	}
-
-	// Build full URL
-	fullURL := baseURL + path
 
 	// Resolve timeout: handler > service > default (30s)
 	defaultTimeout := 30 * time.Second
@@ -297,8 +348,23 @@ func generateHTTPHandler(tool ToolFile, handlerConfig HandlerConfig, serviceConf
 
 	// Return handler function
 	return func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-		// Create request body from args
-		bodyBytes, err := json.Marshal(args)
+		// Substitute path parameters from args
+		path, removedParams := substitutePathParams(pathTemplate, args)
+		
+		// Build full URL with substituted path
+		fullURL := baseURL + path
+		
+		// Create a copy of args without path parameters (they're now in the URL)
+		bodyArgs := make(map[string]interface{})
+		for k, v := range args {
+			// Skip parameters that were used in the path
+			if _, wasRemoved := removedParams[k]; !wasRemoved {
+				bodyArgs[k] = v
+			}
+		}
+		
+		// Create request body from remaining args
+		bodyBytes, err := json.Marshal(bodyArgs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
