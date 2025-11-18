@@ -14,4 +14,3 @@ type Tool struct {
 
 // ToolHandler is a function that handles a tool call
 type ToolHandler func(ctx context.Context, args map[string]interface{}) (interface{}, error)
-

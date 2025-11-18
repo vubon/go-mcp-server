@@ -90,4 +90,3 @@ func respondError(w http.ResponseWriter, code int, message, data string, id inte
 	w.WriteHeader(http.StatusOK) // JSON-RPC uses 200 OK even for errors
 	json.NewEncoder(w).Encode(resp)
 }
-

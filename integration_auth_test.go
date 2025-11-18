@@ -153,7 +153,7 @@ func TestAuthorization_TransformStrategy(t *testing.T) {
 		Method: "POST",
 		Path:   "/test",
 		Authorization: &AuthorizationConfig{
-			Strategy:  StrategyTransform,
+			Strategy:   StrategyTransform,
 			HeaderName: "X-API-Key",
 			Transform: &TransformConfig{
 				FromPrefix: "Bearer",
@@ -206,7 +206,7 @@ func TestAuthorization_StaticStrategy(t *testing.T) {
 		Method: "POST",
 		Path:   "/test",
 		Authorization: &AuthorizationConfig{
-			Strategy:   StrategyStatic,
+			Strategy:    StrategyStatic,
 			StaticValue: "Bearer static-token-456",
 		},
 	}
@@ -259,7 +259,7 @@ func TestAuthorization_TransformEmptyPrefix(t *testing.T) {
 		Method: "POST",
 		Path:   "/test",
 		Authorization: &AuthorizationConfig{
-			Strategy:  StrategyTransform,
+			Strategy:   StrategyTransform,
 			HeaderName: "X-API-Key",
 			Transform: &TransformConfig{
 				FromPrefix: "Bearer",
@@ -341,4 +341,3 @@ func TestAuthorization_NoneStrategy(t *testing.T) {
 		t.Errorf("Expected no authorization header, got %v", authVal)
 	}
 }
-

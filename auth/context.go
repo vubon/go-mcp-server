@@ -24,4 +24,3 @@ func AuthorizationFromContext(ctx context.Context) (string, bool) {
 	}
 	return auth, true
 }
-

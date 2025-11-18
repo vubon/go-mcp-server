@@ -103,7 +103,7 @@ func TestExtractAuthorization_Static(t *testing.T) {
 
 	// Test static value
 	config := &AuthorizationConfig{
-		Strategy:   StrategyStatic,
+		Strategy:    StrategyStatic,
 		StaticValue: "Bearer static-token",
 	}
 
@@ -117,7 +117,7 @@ func TestExtractAuthorization_Static(t *testing.T) {
 	defer os.Unsetenv("TEST_AUTH_TOKEN")
 
 	config = &AuthorizationConfig{
-		Strategy:      "static",
+		Strategy:       "static",
 		StaticValueEnv: "TEST_AUTH_TOKEN",
 	}
 
@@ -219,4 +219,3 @@ func TestExtractAuthorization_NoAuthInContext(t *testing.T) {
 		t.Errorf("Expected empty string when no auth in context, got %q", result)
 	}
 }
-

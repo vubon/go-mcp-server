@@ -44,36 +44,36 @@ type AuthorizationConfig struct {
 	// - StrategyStatic: use static value from config
 	// - StrategyNone: don't add Authorization header
 	Strategy string `json:"strategy" yaml:"strategy"`
-	
+
 	// Header name to use (default: DefaultAuthHeaderName)
 	HeaderName string `json:"headerName,omitempty" yaml:"headerName,omitempty"`
-	
+
 	// For StrategyTransform: transformation rules
 	Transform *TransformConfig `json:"transform,omitempty" yaml:"transform,omitempty"`
-	
+
 	// For StrategyStatic: static value
 	StaticValue string `json:"staticValue,omitempty" yaml:"staticValue,omitempty"`
-	
+
 	// Environment variable for static value
 	StaticValueEnv string `json:"staticValueEnv,omitempty" yaml:"staticValueEnv,omitempty"`
 }
 
 // ServiceConfig represents configuration for a service
 type ServiceConfig struct {
-	BaseURL       string                 `json:"baseURL" yaml:"baseURL"`
-	Timeout       string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Headers       map[string]string      `json:"headers,omitempty" yaml:"headers,omitempty"`
-	Authorization *AuthorizationConfig   `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+	BaseURL       string               `json:"baseURL" yaml:"baseURL"`
+	Timeout       string               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Headers       map[string]string    `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Authorization *AuthorizationConfig `json:"authorization,omitempty" yaml:"authorization,omitempty"`
 }
 
 // HandlerConfig represents configuration for a handler
 type HandlerConfig struct {
-	Type          string                 `json:"type" yaml:"type"`
-	Method        string                 `json:"method" yaml:"method"`
-	Path          string                 `json:"path" yaml:"path"`
-	Headers       map[string]string      `json:"headers,omitempty" yaml:"headers,omitempty"`
-	Timeout       string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Authorization *AuthorizationConfig   `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+	Type          string               `json:"type" yaml:"type"`
+	Method        string               `json:"method" yaml:"method"`
+	Path          string               `json:"path" yaml:"path"`
+	Headers       map[string]string    `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Timeout       string               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Authorization *AuthorizationConfig `json:"authorization,omitempty" yaml:"authorization,omitempty"`
 }
 
 // HandlersConfig represents the complete handlers configuration
@@ -158,17 +158,17 @@ func substituteHeaders(headers map[string]string) map[string]string {
 // mergeHeaders merges service headers with handler headers (handler overrides service)
 func mergeHeaders(serviceHeaders, handlerHeaders map[string]string) map[string]string {
 	result := make(map[string]string)
-	
+
 	// First, add service headers
 	for k, v := range serviceHeaders {
 		result[k] = v
 	}
-	
+
 	// Then, override/add handler headers
 	for k, v := range handlerHeaders {
 		result[k] = v
 	}
-	
+
 	// Substitute environment variables
 	return substituteHeaders(result)
 }
@@ -178,7 +178,7 @@ func parseTimeout(timeoutStr string, defaultTimeout time.Duration) time.Duration
 	if timeoutStr == "" {
 		return defaultTimeout
 	}
-	
+
 	duration, err := time.ParseDuration(timeoutStr)
 	if err != nil {
 		return defaultTimeout
@@ -208,13 +208,13 @@ func substitutePathParams(path string, args map[string]interface{}) (string, map
 	if args == nil || len(args) == 0 {
 		return path, make(map[string]interface{})
 	}
-	
+
 	removed := make(map[string]interface{})
-	
+
 	// Use strings.Builder for efficient string building
 	var builder strings.Builder
 	start := 0
-	
+
 	for {
 		// Find next parameter placeholder
 		paramStart := strings.Index(path[start:], "{")
@@ -226,7 +226,7 @@ func substitutePathParams(path string, args map[string]interface{}) (string, map
 			break
 		}
 		paramStart += start
-		
+
 		// Find closing brace
 		paramEnd := strings.Index(path[paramStart:], "}")
 		if paramEnd == -1 {
@@ -235,13 +235,13 @@ func substitutePathParams(path string, args map[string]interface{}) (string, map
 			break
 		}
 		paramEnd += paramStart
-		
+
 		// Extract parameter name (without braces)
 		paramName := path[paramStart+1 : paramEnd]
-		
+
 		// Append text before parameter
 		builder.WriteString(path[start:paramStart])
-		
+
 		// Get value from args and substitute
 		if value, exists := args[paramName]; exists {
 			valueStr := valueToString(value)
@@ -250,11 +250,11 @@ func substitutePathParams(path string, args map[string]interface{}) (string, map
 			start = paramEnd + 1
 		} else {
 			// Parameter not found, keep placeholder as-is
-			builder.WriteString(path[paramStart:paramEnd+1])
+			builder.WriteString(path[paramStart : paramEnd+1])
 			start = paramEnd + 1
 		}
 	}
-	
+
 	return builder.String(), removed
 }
 
@@ -263,7 +263,7 @@ func transformAuthorization(authHeader string, transform *TransformConfig) strin
 	if transform == nil {
 		return authHeader
 	}
-	
+
 	// Simple prefix transformation
 	if transform.FromPrefix != "" {
 		prefix := transform.FromPrefix + " "
@@ -277,7 +277,7 @@ func transformAuthorization(authHeader string, transform *TransformConfig) strin
 			return transform.ToPrefix + " " + token
 		}
 	}
-	
+
 	return authHeader
 }
 
@@ -294,7 +294,7 @@ func extractAuthorization(ctx context.Context, handlerConfig *AuthorizationConfi
 	if config == nil {
 		config = serviceConfig
 	}
-	
+
 	// If no config, default to pass-through if available
 	if config == nil {
 		if auth, ok := getAuthFromContext(ctx); ok {
@@ -302,23 +302,23 @@ func extractAuthorization(ctx context.Context, handlerConfig *AuthorizationConfi
 		}
 		return ""
 	}
-	
+
 	// Get auth from context once for strategies that need it
 	authFromCtx, hasAuth := getAuthFromContext(ctx)
-	
+
 	switch config.Strategy {
 	case StrategyPassThrough:
 		if hasAuth {
 			return authFromCtx
 		}
 		return ""
-		
+
 	case StrategyTransform:
 		if hasAuth {
 			return transformAuthorization(authFromCtx, config.Transform)
 		}
 		return ""
-		
+
 	case StrategyStatic:
 		if config.StaticValue != "" {
 			return config.StaticValue
@@ -327,10 +327,10 @@ func extractAuthorization(ctx context.Context, handlerConfig *AuthorizationConfi
 			return os.Getenv(config.StaticValueEnv)
 		}
 		return ""
-		
+
 	case StrategyNone:
 		return ""
-		
+
 	default:
 		// Unknown strategy, fallback to pass-through
 		if hasAuth {
@@ -347,26 +347,26 @@ func getAuthHeaderName(handlerConfig *AuthorizationConfig, serviceConfig *Author
 	if handlerConfig != nil && handlerConfig.HeaderName != "" {
 		return handlerConfig.HeaderName
 	}
-	
+
 	// Fall back to service config
 	if serviceConfig != nil && serviceConfig.HeaderName != "" {
 		return serviceConfig.HeaderName
 	}
-	
+
 	// Default
 	return DefaultAuthHeaderName
 }
 
 // httpHandlerConfig holds resolved configuration for HTTP handler
 type httpHandlerConfig struct {
-	baseURL       string
-	pathTemplate  string
-	method        string
-	timeout       time.Duration
-	headers       map[string]string
-	authConfig    *AuthorizationConfig
-	serviceAuth   *AuthorizationConfig
-	client        *http.Client
+	baseURL      string
+	pathTemplate string
+	method       string
+	timeout      time.Duration
+	headers      map[string]string
+	authConfig   *AuthorizationConfig
+	serviceAuth  *AuthorizationConfig
+	client       *http.Client
 }
 
 // validateHandlerConfig validates handler and service configuration
@@ -374,11 +374,11 @@ func validateHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceCo
 	if handlerConfig.Type != "http" {
 		return fmt.Errorf("unsupported handler type: %s", handlerConfig.Type)
 	}
-	
+
 	if serviceConfig.BaseURL == "" {
 		return fmt.Errorf("baseURL is required for service %s", tool.ServiceName)
 	}
-	
+
 	pathTemplate := handlerConfig.Path
 	if pathTemplate == "" {
 		pathTemplate = tool.Endpoint
@@ -386,7 +386,7 @@ func validateHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceCo
 	if pathTemplate == "" {
 		return fmt.Errorf("path or endpoint is required for tool %s", tool.Name)
 	}
-	
+
 	return nil
 }
 
@@ -397,11 +397,11 @@ func resolveHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceCon
 	if pathTemplate == "" {
 		pathTemplate = tool.Endpoint
 	}
-	
+
 	// Resolve timeout: handler > service > default
 	serviceTimeout := parseTimeout(serviceConfig.Timeout, DefaultHTTPTimeout)
 	handlerTimeout := parseTimeout(handlerConfig.Timeout, serviceTimeout)
-	
+
 	// Merge headers: service + handler (handler overrides)
 	serviceHeaders := serviceConfig.Headers
 	if serviceHeaders == nil {
@@ -412,12 +412,12 @@ func resolveHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceCon
 		handlerHeaders = make(map[string]string)
 	}
 	mergedHeaders := mergeHeaders(serviceHeaders, handlerHeaders)
-	
+
 	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: handlerTimeout,
 	}
-	
+
 	return &httpHandlerConfig{
 		baseURL:      serviceConfig.BaseURL,
 		pathTemplate: pathTemplate,
@@ -434,10 +434,10 @@ func resolveHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceCon
 func (cfg *httpHandlerConfig) buildHTTPRequest(ctx context.Context, args map[string]interface{}) (*http.Request, error) {
 	// Substitute path parameters from args
 	path, removedParams := substitutePathParams(cfg.pathTemplate, args)
-	
+
 	// Build full URL with substituted path
 	fullURL := cfg.baseURL + path
-	
+
 	// Create a copy of args without path parameters (they're now in the URL)
 	bodyArgs := make(map[string]interface{})
 	for k, v := range args {
@@ -446,7 +446,7 @@ func (cfg *httpHandlerConfig) buildHTTPRequest(ctx context.Context, args map[str
 			bodyArgs[k] = v
 		}
 	}
-	
+
 	// Create request body from remaining args
 	bodyBytes, err := json.Marshal(bodyArgs)
 	if err != nil {
@@ -529,4 +529,3 @@ func generateHTTPHandler(tool ToolFile, handlerConfig HandlerConfig, serviceConf
 		return handleHTTPResponse(resp)
 	}, nil
 }
-

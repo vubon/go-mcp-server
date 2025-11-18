@@ -880,4 +880,3 @@ func TestServer_RegisterToolsFromConfig_Validation(t *testing.T) {
 		}
 	})
 }
-

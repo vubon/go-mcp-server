@@ -57,4 +57,3 @@ func TestAuthorizationFromContext_MultipleCalls(t *testing.T) {
 		}
 	}
 }
-

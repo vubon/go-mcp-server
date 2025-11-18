@@ -19,4 +19,3 @@ type ServerTransport interface {
 	// GetServer returns the underlying MCP server
 	GetServer() *mcpserver.Server
 }
-

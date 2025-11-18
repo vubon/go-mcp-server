@@ -439,5 +439,3 @@ func TestStdioTransport_Run_MultipleRequests(t *testing.T) {
 		t.Errorf("Expected second response ID 2, got %v (type %T)", resp2.ID, resp2.ID)
 	}
 }
-
-

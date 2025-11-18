@@ -47,7 +47,7 @@ func TestHTTPTransport_Run(t *testing.T) {
 
 	transport := NewHTTP(server)
 	ctx := context.Background()
-	
+
 	err := transport.Run(ctx)
 	if err == nil {
 		t.Error("Expected Run to return an error for HTTP transport")
@@ -369,7 +369,7 @@ func TestHTTPTransport_AuthorizationContext(t *testing.T) {
 		JSONRPC: "2.0",
 		Method:  "tools/call",
 		ID:      1,
-		Params: json.RawMessage(`{"name": "test_auth", "arguments": {}}`),
+		Params:  json.RawMessage(`{"name": "test_auth", "arguments": {}}`),
 	}
 
 	body, _ := json.Marshal(request)
@@ -399,4 +399,3 @@ func TestHTTPTransport_AuthorizationContext(t *testing.T) {
 		t.Errorf("Expected authorization token in response, got: %s", string(resultBytes))
 	}
 }
-
