@@ -8,7 +8,7 @@ import (
 
 // Transport is the interface that all MCP transports must implement
 type Transport interface {
-	// Run starts the transport and blocks until the context is cancelled
+	// Run starts the transport and blocks until the context is canceled
 	// For HTTP transport, this may not be applicable (use ServeHTTP instead)
 	Run(ctx context.Context) error
 }

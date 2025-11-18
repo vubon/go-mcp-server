@@ -69,7 +69,7 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("📤 JSON-RPC response: id=%v, error=%v", resp.ID, resp.Error != nil)
 
 	// Send response
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mcpserver.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("Error encoding response: %v", err)
@@ -78,7 +78,7 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func respondError(w http.ResponseWriter, code int, message, data string, id interface{}) {
 	resp := mcpserver.Response{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Error: &mcpserver.Error{
 			Code:    code,
 			Message: message,
@@ -86,7 +86,9 @@ func respondError(w http.ResponseWriter, code int, message, data string, id inte
 		},
 		ID: id,
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", mcpserver.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK) // JSON-RPC uses 200 OK even for errors
-	json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Error encoding error response: %v", err)
+	}
 }

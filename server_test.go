@@ -14,7 +14,7 @@ func TestNew(t *testing.T) {
 		config := &Config{
 			Name:            "test-server",
 			Version:         "1.0.0",
-			ProtocolVersion: "2024-11-05",
+			ProtocolVersion: DefaultProtocolVersion,
 		}
 
 		server := New(config)
@@ -24,8 +24,8 @@ func TestNew(t *testing.T) {
 		if server.config != config {
 			t.Error("Server config does not match")
 		}
-		if server.config.ProtocolVersion != "2024-11-05" {
-			t.Errorf("Expected protocol version '2024-11-05', got %s", server.config.ProtocolVersion)
+		if server.config.ProtocolVersion != DefaultProtocolVersion {
+			t.Errorf("Expected protocol version %q, got %s", DefaultProtocolVersion, server.config.ProtocolVersion)
 		}
 	})
 
@@ -217,7 +217,7 @@ func TestServer_HandleRequest(t *testing.T) {
 
 	t.Run("Initialize method", func(t *testing.T) {
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "initialize",
 			ID:      1,
 		}
@@ -238,8 +238,8 @@ func TestServer_HandleRequest(t *testing.T) {
 			t.Fatal("Result is not a map")
 		}
 
-		if result["protocolVersion"] != "2024-11-05" {
-			t.Errorf("Expected protocol version '2024-11-05', got %v", result["protocolVersion"])
+		if result["protocolVersion"] != DefaultProtocolVersion {
+			t.Errorf("Expected protocol version %q, got %v", DefaultProtocolVersion, result["protocolVersion"])
 		}
 
 		serverInfo, ok := result["serverInfo"].(map[string]interface{})
@@ -256,7 +256,7 @@ func TestServer_HandleRequest(t *testing.T) {
 
 	t.Run("Initialized notification", func(t *testing.T) {
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "initialized",
 			ID:      nil,
 		}
@@ -279,7 +279,7 @@ func TestServer_HandleRequest(t *testing.T) {
 		}, handler)
 
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "tools/list",
 			ID:      1,
 		}
@@ -324,7 +324,7 @@ func TestServer_HandleRequest(t *testing.T) {
 		paramsJSON, _ := json.Marshal(params)
 
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "tools/call",
 			Params:  paramsJSON,
 			ID:      1,
@@ -350,14 +350,14 @@ func TestServer_HandleRequest(t *testing.T) {
 		if len(content) != 1 {
 			t.Errorf("Expected 1 content item, got %d", len(content))
 		}
-		if content[0]["type"] != "text" {
-			t.Errorf("Expected content type 'text', got %v", content[0]["type"])
+		if content[0]["type"] != ContentTypeText {
+			t.Errorf("Expected content type %q, got %v", ContentTypeText, content[0]["type"])
 		}
 	})
 
 	t.Run("Unknown method", func(t *testing.T) {
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "unknown/method",
 			ID:      1,
 		}
@@ -386,7 +386,7 @@ func TestServer_HandleToolCall(t *testing.T) {
 
 	t.Run("Invalid params", func(t *testing.T) {
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "tools/call",
 			Params:  json.RawMessage("invalid json"),
 			ID:      1,
@@ -415,7 +415,7 @@ func TestServer_HandleToolCall(t *testing.T) {
 		paramsJSON, _ := json.Marshal(params)
 
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "tools/call",
 			Params:  paramsJSON,
 			ID:      1,
@@ -453,7 +453,7 @@ func TestServer_HandleToolCall(t *testing.T) {
 		paramsJSON, _ := json.Marshal(params)
 
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "tools/call",
 			Params:  paramsJSON,
 			ID:      1,
@@ -494,7 +494,7 @@ func TestServer_HandleToolCall(t *testing.T) {
 		paramsJSON, _ := json.Marshal(params)
 
 		req := &Request{
-			JSONRPC: "2.0",
+			JSONRPC: JSONRPCVersion,
 			Method:  "tools/call",
 			Params:  paramsJSON,
 			ID:      1,
@@ -520,8 +520,8 @@ func TestServer_HandleToolCall(t *testing.T) {
 		if len(content) != 1 {
 			t.Errorf("Expected 1 content item, got %d", len(content))
 		}
-		if content[0]["type"] != "text" {
-			t.Errorf("Expected content type 'text', got %v", content[0]["type"])
+		if content[0]["type"] != ContentTypeText {
+			t.Errorf("Expected content type %q, got %v", ContentTypeText, content[0]["type"])
 		}
 	})
 }
@@ -558,7 +558,7 @@ func TestFormatResultAsContent(t *testing.T) {
 			t.Errorf("Expected 1 content item, got %d", len(content))
 		}
 		text := content[0]["text"].(string)
-		if len(text) == 0 {
+		if text == "" {
 			t.Error("Text is empty")
 		}
 	})
@@ -725,8 +725,8 @@ func TestServer_RegisterToolsFromFiles(t *testing.T) {
 	})
 
 	t.Run("Valid YAML files", func(t *testing.T) {
-		toolsYAMLFile := filepath.Join(tmpDir, "tools.yaml")
-		handlersYAMLFile := filepath.Join(tmpDir, "handlers.yaml")
+		toolsYAMLFile := filepath.Join(tmpDir, "tools"+YAMLExtension)
+		handlersYAMLFile := filepath.Join(tmpDir, "handlers"+YAMLExtension)
 
 		toolsYAML := `
 - Name: test_tool

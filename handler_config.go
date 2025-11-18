@@ -205,7 +205,7 @@ func valueToString(v interface{}) string {
 // substitutePathParams substitutes path parameters like {param_name} with values from args
 // Returns the substituted path and a map of removed parameters
 func substitutePathParams(path string, args map[string]interface{}) (string, map[string]interface{}) {
-	if args == nil || len(args) == 0 {
+	if len(args) == 0 {
 		return path, make(map[string]interface{})
 	}
 
@@ -286,9 +286,9 @@ func getAuthFromContext(ctx context.Context) (string, bool) {
 	return auth.AuthorizationFromContext(ctx)
 }
 
-// extractAuthorization extracts and processes authorization header based on configuration
+// extractAuthorization extracts and processes authorization header based on configuration.
 // Resolution order: handler config > service config > default (pass-through)
-func extractAuthorization(ctx context.Context, handlerConfig *AuthorizationConfig, serviceConfig *AuthorizationConfig) string {
+func extractAuthorization(ctx context.Context, handlerConfig, serviceConfig *AuthorizationConfig) string {
 	// Determine which config to use (handler overrides service)
 	config := handlerConfig
 	if config == nil {
@@ -340,9 +340,9 @@ func extractAuthorization(ctx context.Context, handlerConfig *AuthorizationConfi
 	}
 }
 
-// getAuthHeaderName returns the header name to use for authorization
+// getAuthHeaderName returns the header name to use for authorization.
 // Resolution order: handler config > service config > default
-func getAuthHeaderName(handlerConfig *AuthorizationConfig, serviceConfig *AuthorizationConfig) string {
+func getAuthHeaderName(handlerConfig, serviceConfig *AuthorizationConfig) string {
 	// Check handler config first
 	if handlerConfig != nil && handlerConfig.HeaderName != "" {
 		return handlerConfig.HeaderName
@@ -369,8 +369,8 @@ type httpHandlerConfig struct {
 	client       *http.Client
 }
 
-// validateHandlerConfig validates handler and service configuration
-func validateHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) error {
+// validateHandlerConfig validates handler and service configuration.
+func validateHandlerConfig(tool *ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) error {
 	if handlerConfig.Type != "http" {
 		return fmt.Errorf("unsupported handler type: %s", handlerConfig.Type)
 	}
@@ -390,8 +390,8 @@ func validateHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceCo
 	return nil
 }
 
-// resolveHandlerConfig resolves all configuration values
-func resolveHandlerConfig(tool ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) *httpHandlerConfig {
+// resolveHandlerConfig resolves all configuration values.
+func resolveHandlerConfig(tool *ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) *httpHandlerConfig {
 	// Resolve path template
 	pathTemplate := handlerConfig.Path
 	if pathTemplate == "" {
@@ -454,7 +454,13 @@ func (cfg *httpHandlerConfig) buildHTTPRequest(ctx context.Context, args map[str
 	}
 
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, cfg.method, fullURL, bytes.NewReader(bodyBytes))
+	var bodyReader io.Reader
+	if len(bodyBytes) > 0 {
+		bodyReader = bytes.NewReader(bodyBytes)
+	} else {
+		bodyReader = http.NoBody
+	}
+	req, err := http.NewRequestWithContext(ctx, cfg.method, fullURL, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -474,7 +480,7 @@ func (cfg *httpHandlerConfig) buildHTTPRequest(ctx context.Context, args map[str
 	return req, nil
 }
 
-// handleHTTPResponse processes the HTTP response and returns the result
+// handleHTTPResponse processes the HTTP response and returns the result.
 func handleHTTPResponse(resp *http.Response) (interface{}, error) {
 	defer resp.Body.Close()
 
@@ -501,8 +507,8 @@ func handleHTTPResponse(resp *http.Response) (interface{}, error) {
 	return result, nil
 }
 
-// generateHTTPHandler creates an HTTP handler function from tool and handler configuration
-func generateHTTPHandler(tool ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) (ToolHandler, error) {
+// generateHTTPHandler creates an HTTP handler function from tool and handler configuration.
+func generateHTTPHandler(tool *ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) (ToolHandler, error) {
 	// Validate configuration
 	if err := validateHandlerConfig(tool, handlerConfig, serviceConfig); err != nil {
 		return nil, err

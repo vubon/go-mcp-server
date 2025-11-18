@@ -78,7 +78,7 @@ func TestStdioTransport_SendResponse(t *testing.T) {
 	transport := NewStdioWithIO(server, strings.NewReader(""), output)
 
 	resp := &mcpserver.Response{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		ID:      1,
 		Result:  map[string]interface{}{"test": "value"},
 	}
@@ -103,8 +103,8 @@ func TestStdioTransport_SendResponse(t *testing.T) {
 		t.Fatalf("Output is not valid JSON: %v", err)
 	}
 
-	if decodedResp.JSONRPC != "2.0" {
-		t.Errorf("Expected JSONRPC '2.0', got %s", decodedResp.JSONRPC)
+	if decodedResp.JSONRPC != mcpserver.JSONRPCVersion {
+		t.Errorf("Expected JSONRPC %q, got %s", mcpserver.JSONRPCVersion, decodedResp.JSONRPC)
 	}
 	// ID is interface{}, JSON unmarshals numbers as float64
 	if decodedResp.ID != float64(1) && decodedResp.ID != 1 {
@@ -119,7 +119,7 @@ func TestStdioTransport_Run_ValidRequest(t *testing.T) {
 	})
 
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      1,
 	}
@@ -166,8 +166,8 @@ func TestStdioTransport_Run_ValidRequest(t *testing.T) {
 		t.Fatalf("Response is not valid JSON: %v", err)
 	}
 
-	if resp.JSONRPC != "2.0" {
-		t.Errorf("Expected JSONRPC '2.0', got %s", resp.JSONRPC)
+	if resp.JSONRPC != mcpserver.JSONRPCVersion {
+		t.Errorf("Expected JSONRPC %q, got %s", mcpserver.JSONRPCVersion, resp.JSONRPC)
 	}
 	// ID is interface{}, JSON unmarshals numbers as float64
 	if resp.ID != float64(1) && resp.ID != 1 {
@@ -237,7 +237,7 @@ func TestStdioTransport_Run_EmptyLines(t *testing.T) {
 	})
 
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      1,
 	}
@@ -280,7 +280,7 @@ func TestStdioTransport_Run_Notification(t *testing.T) {
 
 	// Notification has no ID
 	request := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "initialized",
 		ID:      nil,
 	}
@@ -378,12 +378,12 @@ func TestStdioTransport_Run_MultipleRequests(t *testing.T) {
 	})
 
 	request1 := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      1,
 	}
 	request2 := mcpserver.Request{
-		JSONRPC: "2.0",
+		JSONRPC: mcpserver.JSONRPCVersion,
 		Method:  "tools/list",
 		ID:      2,
 	}
