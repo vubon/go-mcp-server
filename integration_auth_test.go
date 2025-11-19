@@ -341,3 +341,203 @@ func TestAuthorization_NoneStrategy(t *testing.T) {
 		t.Errorf("Expected no authorization header, got %v", authVal)
 	}
 }
+
+func TestIntegration_QueryParameters(t *testing.T) {
+	// Create a mock backend server that captures query parameters
+	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Capture query parameters
+		queryParams := r.URL.Query()
+
+		// Capture request body
+		var body map[string]interface{}
+		if r.Body != nil {
+			json.NewDecoder(r.Body).Decode(&body)
+		}
+
+		// Respond with captured data
+		response := map[string]interface{}{
+			"queryParams": queryParams,
+			"requestPath": r.URL.Path,
+			"requestBody": body,
+			"method":      r.Method,
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer mockBackend.Close()
+
+	// Create tool and handler config with query parameters
+	tool := ToolFile{
+		Name:        "getUsers",
+		Description: "Get users with pagination",
+		ServiceName: "user-service",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"page":  map[string]interface{}{"type": "integer"},
+				"limit": map[string]interface{}{"type": "integer"},
+				"sort":  map[string]interface{}{"type": "string"},
+				"data":  map[string]interface{}{"type": "string"}, // Should be in body
+			},
+		},
+	}
+
+	handlerConfig := HandlerConfig{
+		Type:   "http",
+		Method: "GET",
+		Path:   "/api/v1/users",
+		QueryParams: map[string]string{
+			"page":   "{page}",
+			"limit":  "{limit}",
+			"sort":   "{sort}",
+			"format": "json", // Static query param
+		},
+	}
+
+	serviceConfig := ServiceConfig{
+		BaseURL: mockBackend.URL,
+	}
+
+	// Generate handler
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
+	if err != nil {
+		t.Fatalf("Failed to generate handler: %v", err)
+	}
+
+	tests := []struct {
+		name           string
+		args           map[string]interface{}
+		expectedParams map[string][]string
+		expectedBody   map[string]interface{}
+	}{
+		{
+			name: "All query parameters provided",
+			args: map[string]interface{}{
+				"page":  1,
+				"limit": 10,
+				"sort":  "name",
+				"data":  "should-be-in-body",
+			},
+			expectedParams: map[string][]string{
+				"page":   {"1"},
+				"limit":  {"10"},
+				"sort":   {"name"},
+				"format": {"json"},
+			},
+			expectedBody: map[string]interface{}{
+				"data": "should-be-in-body",
+			},
+		},
+		{
+			name: "Partial query parameters",
+			args: map[string]interface{}{
+				"page": 2,
+				"data": "body-data",
+			},
+			expectedParams: map[string][]string{
+				"page":   {"2"},
+				"format": {"json"},
+			},
+			expectedBody: map[string]interface{}{
+				"data": "body-data",
+			},
+		},
+		{
+			name: "URL encoding in query parameters",
+			args: map[string]interface{}{
+				"sort": "name&order=asc",
+				"page": 1,
+			},
+			expectedParams: map[string][]string{
+				"sort":   {"name&order=asc"},
+				"page":   {"1"},
+				"format": {"json"},
+			},
+			expectedBody: map[string]interface{}{},
+		},
+		{
+			name: "Only static query parameters",
+			args: map[string]interface{}{
+				"data": "body-only",
+			},
+			expectedParams: map[string][]string{
+				"format": {"json"},
+			},
+			expectedBody: map[string]interface{}{
+				"data": "body-only",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			result, err := handler(ctx, tt.args)
+			if err != nil {
+				t.Fatalf("Handler failed: %v", err)
+			}
+
+			resultMap, ok := result.(map[string]interface{})
+			if !ok {
+				t.Fatalf("Expected map result, got %T", result)
+			}
+
+			// Verify query parameters
+			queryParams, ok := resultMap["queryParams"].(map[string]interface{})
+			if !ok {
+				t.Fatalf("Expected queryParams in result, got %T", resultMap["queryParams"])
+			}
+
+			for key, expectedValues := range tt.expectedParams {
+				actualValue, exists := queryParams[key]
+				if !exists {
+					t.Errorf("Expected query param %q, but it was not found", key)
+					continue
+				}
+
+				// Convert to []string for comparison
+				actualValues, ok2 := actualValue.([]interface{})
+				if !ok2 {
+					t.Errorf("Expected []interface{} for query param %q, got %T", key, actualValue)
+					continue
+				}
+
+				if len(actualValues) != len(expectedValues) {
+					t.Errorf("Query param %q: expected %d values, got %d", key, len(expectedValues), len(actualValues))
+					continue
+				}
+
+				for i, expectedVal := range expectedValues {
+					if actualValues[i] != expectedVal {
+						t.Errorf("Query param %q[%d]: expected %q, got %v", key, i, expectedVal, actualValues[i])
+					}
+				}
+			}
+
+			// Verify request body (should not contain query params)
+			body, ok := resultMap["requestBody"].(map[string]interface{})
+			if !ok && len(tt.expectedBody) > 0 {
+				t.Fatalf("Expected requestBody in result, got %T", resultMap["requestBody"])
+			}
+
+			if len(tt.expectedBody) > 0 {
+				for key, expectedVal := range tt.expectedBody {
+					if body[key] != expectedVal {
+						t.Errorf("Body param %q: expected %v, got %v", key, expectedVal, body[key])
+					}
+				}
+
+				// Verify query params are NOT in body
+				for key := range tt.expectedParams {
+					if _, exists := body[key]; exists {
+						t.Errorf("Query param %q should not be in request body", key)
+					}
+				}
+			}
+
+			// Verify path
+			if resultMap["requestPath"] != "/api/v1/users" {
+				t.Errorf("Expected path /api/v1/users, got %v", resultMap["requestPath"])
+			}
+		})
+	}
+}

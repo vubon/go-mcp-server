@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"context"
+	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/vubon/go-mcp-server/auth"
@@ -290,4 +292,145 @@ func TestGetAuthFromContext(t *testing.T) {
 			t.Error("Expected authorization not to be found")
 		}
 	})
+}
+
+func TestSubstituteQueryParams(t *testing.T) {
+	tests := []struct {
+		name            string
+		queryParams     map[string]string
+		args            map[string]interface{}
+		expectedQuery   string
+		expectedRemoved map[string]interface{}
+	}{
+		{
+			name:            "Empty query params",
+			queryParams:     nil,
+			args:            map[string]interface{}{"page": 1},
+			expectedQuery:   "",
+			expectedRemoved: map[string]interface{}{},
+		},
+		{
+			name:            "Empty query params map",
+			queryParams:     map[string]string{},
+			args:            map[string]interface{}{"page": 1},
+			expectedQuery:   "",
+			expectedRemoved: map[string]interface{}{},
+		},
+		{
+			name:            "Single dynamic parameter",
+			queryParams:     map[string]string{"page": "{page}"},
+			args:            map[string]interface{}{"page": 1},
+			expectedQuery:   "?page=1",
+			expectedRemoved: map[string]interface{}{"page": 1},
+		},
+		{
+			name: "Multiple dynamic parameters",
+			queryParams: map[string]string{
+				"page":  "{page}",
+				"limit": "{limit}",
+			},
+			args:            map[string]interface{}{"page": 1, "limit": 10},
+			expectedQuery:   "?limit=10&page=1", // Order may vary
+			expectedRemoved: map[string]interface{}{"page": 1, "limit": 10},
+		},
+		{
+			name: "Mixed static and dynamic",
+			queryParams: map[string]string{
+				"page":   "{page}",
+				"format": "json", // Static
+			},
+			args:            map[string]interface{}{"page": 1},
+			expectedQuery:   "?format=json&page=1", // Order may vary
+			expectedRemoved: map[string]interface{}{"page": 1},
+		},
+		{
+			name:            "URL encoding",
+			queryParams:     map[string]string{"q": "{query}"},
+			args:            map[string]interface{}{"query": "hello world"},
+			expectedQuery:   "?q=hello+world",
+			expectedRemoved: map[string]interface{}{"query": "hello world"},
+		},
+		{
+			name:            "URL encoding special characters",
+			queryParams:     map[string]string{"q": "{query}"},
+			args:            map[string]interface{}{"query": "hello&world=test"},
+			expectedQuery:   "?q=hello%26world%3Dtest",
+			expectedRemoved: map[string]interface{}{"query": "hello&world=test"},
+		},
+		{
+			name:            "Missing parameter",
+			queryParams:     map[string]string{"page": "{page}"},
+			args:            map[string]interface{}{"other": "value"},
+			expectedQuery:   "",
+			expectedRemoved: map[string]interface{}{},
+		},
+		{
+			name:            "String value",
+			queryParams:     map[string]string{"name": "{name}"},
+			args:            map[string]interface{}{"name": "John"},
+			expectedQuery:   "?name=John",
+			expectedRemoved: map[string]interface{}{"name": "John"},
+		},
+		{
+			name:            "Integer value",
+			queryParams:     map[string]string{"id": "{id}"},
+			args:            map[string]interface{}{"id": 123},
+			expectedQuery:   "?id=123",
+			expectedRemoved: map[string]interface{}{"id": 123},
+		},
+		{
+			name:            "Float value",
+			queryParams:     map[string]string{"price": "{price}"},
+			args:            map[string]interface{}{"price": 99.99},
+			expectedQuery:   "?price=99.99",
+			expectedRemoved: map[string]interface{}{"price": 99.99},
+		},
+		{
+			name:            "Boolean value",
+			queryParams:     map[string]string{"active": "{active}"},
+			args:            map[string]interface{}{"active": true},
+			expectedQuery:   "?active=true",
+			expectedRemoved: map[string]interface{}{"active": true},
+		},
+		{
+			name: "All static values",
+			queryParams: map[string]string{
+				"format":  "json",
+				"version": "v1",
+			},
+			args:            map[string]interface{}{},
+			expectedQuery:   "?format=json&version=v1", // Order may vary
+			expectedRemoved: map[string]interface{}{},
+		},
+		{
+			name:            "Empty string value",
+			queryParams:     map[string]string{"filter": "{filter}"},
+			args:            map[string]interface{}{"filter": ""},
+			expectedQuery:   "?filter=",
+			expectedRemoved: map[string]interface{}{"filter": ""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query, removed := substituteQueryParams(tt.queryParams, tt.args)
+
+			// Parse expected and actual query strings to compare (order may vary)
+			if tt.expectedQuery != "" {
+				expectedParams, _ := url.ParseQuery(tt.expectedQuery[1:]) // Remove "?"
+				actualParams, _ := url.ParseQuery(query[1:])              // Remove "?"
+
+				if !reflect.DeepEqual(expectedParams, actualParams) {
+					t.Errorf("Query params mismatch.\nExpected: %v\nGot: %v", expectedParams, actualParams)
+				}
+			} else if query != "" {
+				t.Errorf("Expected empty query string, got %q", query)
+			}
+
+			// Check removed parameters
+			if !reflect.DeepEqual(removed, tt.expectedRemoved) {
+				t.Errorf("Removed params mismatch.\nExpected: %v\nGot: %v", tt.expectedRemoved, removed)
+			}
+		})
+	}
 }
