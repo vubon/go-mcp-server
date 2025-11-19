@@ -53,7 +53,7 @@ func TestAuthorizationPassThrough_EndToEnd(t *testing.T) {
 	}
 
 	// Generate handler
-	handler, err := generateHTTPHandler(&tool, handlerConfig, serviceConfig)
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
 	if err != nil {
 		t.Fatalf("Failed to generate handler: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestAuthorizationPassThrough_ServiceLevelConfig(t *testing.T) {
 		},
 	}
 
-	handler, err := generateHTTPHandler(&tool, handlerConfig, serviceConfig)
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
 	if err != nil {
 		t.Fatalf("Failed to generate handler: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestAuthorization_TransformStrategy(t *testing.T) {
 		BaseURL: mockBackend.URL,
 	}
 
-	handler, err := generateHTTPHandler(&tool, handlerConfig, serviceConfig)
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
 	if err != nil {
 		t.Fatalf("Failed to generate handler: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestAuthorization_StaticStrategy(t *testing.T) {
 		BaseURL: mockBackend.URL,
 	}
 
-	handler, err := generateHTTPHandler(&tool, handlerConfig, serviceConfig)
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
 	if err != nil {
 		t.Fatalf("Failed to generate handler: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestAuthorization_TransformEmptyPrefix(t *testing.T) {
 		BaseURL: mockBackend.URL,
 	}
 
-	handler, err := generateHTTPHandler(&tool, handlerConfig, serviceConfig)
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
 	if err != nil {
 		t.Fatalf("Failed to generate handler: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestAuthorization_NoneStrategy(t *testing.T) {
 		BaseURL: mockBackend.URL,
 	}
 
-	handler, err := generateHTTPHandler(&tool, handlerConfig, serviceConfig)
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
 	if err != nil {
 		t.Fatalf("Failed to generate handler: %v", err)
 	}

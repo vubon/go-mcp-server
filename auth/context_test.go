@@ -5,9 +5,11 @@ import (
 	"testing"
 )
 
+const testBearerToken123 = "Bearer test-token-123"
+
 func TestWithAuthorization(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token-123"
+	authHeader := testBearerToken123
 
 	ctxWithAuth := WithAuthorization(ctx, authHeader)
 
@@ -42,7 +44,7 @@ func TestAuthorizationFromContext_NotFound(t *testing.T) {
 
 func TestAuthorizationFromContext_MultipleCalls(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token-123"
+	authHeader := testBearerToken123
 
 	ctxWithAuth := WithAuthorization(ctx, authHeader)
 

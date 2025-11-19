@@ -370,7 +370,7 @@ type httpHandlerConfig struct {
 }
 
 // validateHandlerConfig validates handler and service configuration.
-func validateHandlerConfig(tool *ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) error {
+func validateHandlerConfig(tool *ToolFile, handlerConfig *HandlerConfig, serviceConfig ServiceConfig) error {
 	if handlerConfig.Type != "http" {
 		return fmt.Errorf("unsupported handler type: %s", handlerConfig.Type)
 	}
@@ -391,7 +391,9 @@ func validateHandlerConfig(tool *ToolFile, handlerConfig HandlerConfig, serviceC
 }
 
 // resolveHandlerConfig resolves all configuration values.
-func resolveHandlerConfig(tool *ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) *httpHandlerConfig {
+func resolveHandlerConfig(
+	tool *ToolFile, handlerConfig *HandlerConfig, serviceConfig ServiceConfig,
+) *httpHandlerConfig {
 	// Resolve path template
 	pathTemplate := handlerConfig.Path
 	if pathTemplate == "" {
@@ -431,7 +433,9 @@ func resolveHandlerConfig(tool *ToolFile, handlerConfig HandlerConfig, serviceCo
 }
 
 // buildHTTPRequest builds an HTTP request from context and arguments
-func (cfg *httpHandlerConfig) buildHTTPRequest(ctx context.Context, args map[string]interface{}) (*http.Request, error) {
+func (cfg *httpHandlerConfig) buildHTTPRequest(
+	ctx context.Context, args map[string]interface{},
+) (*http.Request, error) {
 	// Substitute path parameters from args
 	path, removedParams := substitutePathParams(cfg.pathTemplate, args)
 
@@ -508,7 +512,9 @@ func handleHTTPResponse(resp *http.Response) (interface{}, error) {
 }
 
 // generateHTTPHandler creates an HTTP handler function from tool and handler configuration.
-func generateHTTPHandler(tool *ToolFile, handlerConfig HandlerConfig, serviceConfig ServiceConfig) (ToolHandler, error) {
+func generateHTTPHandler(
+	tool *ToolFile, handlerConfig *HandlerConfig, serviceConfig ServiceConfig,
+) (ToolHandler, error) {
 	// Validate configuration
 	if err := validateHandlerConfig(tool, handlerConfig, serviceConfig); err != nil {
 		return nil, err

@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/vubon/go-mcp-server"
+	mcpserver "github.com/vubon/go-mcp-server"
 )
 
 // StdioTransport handles MCP communication over stdin/stdout
@@ -67,7 +67,7 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 			}
 
 			line := scanner.Bytes()
-			if string(line) == "" {
+			if len(line) == 0 {
 				continue // Skip empty lines
 			}
 

@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/vubon/go-mcp-server"
+	mcpserver "github.com/vubon/go-mcp-server"
 	"github.com/vubon/go-mcp-server/auth"
 )
 
@@ -23,7 +23,7 @@ func (t *HTTPTransport) GetServer() *mcpserver.Server {
 
 // Run is not applicable for HTTP transport (use ServeHTTP instead)
 // This implements the Transport interface but returns an error
-func (t *HTTPTransport) Run(ctx context.Context) error {
+func (t *HTTPTransport) Run(_ context.Context) error {
 	return fmt.Errorf("HTTP transport does not support Run(), use ServeHTTP() instead")
 }
 

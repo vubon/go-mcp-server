@@ -312,7 +312,7 @@ func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *Handl
 		}
 
 		// Generate HTTP handler
-		handler, err := generateHTTPHandler(&toolFile, handlerConfig, serviceConfig)
+		handler, err := generateHTTPHandler(&toolFile, &handlerConfig, serviceConfig)
 		if err != nil {
 			return fmt.Errorf("failed to generate handler for tool %s: %w", toolFile.Name, err)
 		}
