@@ -9,6 +9,30 @@ import (
 	"testing"
 )
 
+// Test constants
+const (
+	testBearerToken    = "Bearer test-token"
+	testBearerToken123 = "Bearer test-token-123"
+	testToolsJSON      = `[
+			{
+				"Name": "test_tool",
+				"Description": "Test tool",
+				"ServiceName": "test-service",
+				"InputSchema": {"type": "object"}
+			}
+		]`
+	testHandlersYAML = `
+serviceConfig:
+  test-service:
+    baseURL: https://api.example.com
+handlers:
+  test_tool:
+    type: http
+    method: POST
+    path: /api/test
+`
+)
+
 func TestNew(t *testing.T) {
 	t.Run("With protocol version", func(t *testing.T) {
 		config := &Config{
@@ -39,8 +63,8 @@ func TestNew(t *testing.T) {
 		if server == nil {
 			t.Fatal("New returned nil")
 		}
-		if server.config.ProtocolVersion != "2024-11-05" {
-			t.Errorf("Expected default protocol version '2024-11-05', got %s", server.config.ProtocolVersion)
+		if server.config.ProtocolVersion != DefaultProtocolVersion {
+			t.Errorf("Expected default protocol version %q, got %s", DefaultProtocolVersion, server.config.ProtocolVersion)
 		}
 	})
 
@@ -74,7 +98,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			InputSchema: map[string]interface{}{"type": "object"},
 		}
 
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return map[string]string{"result": "success"}, nil
 		}
 
@@ -99,7 +123,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			InputSchema: map[string]interface{}{"type": "object"},
 		}
 
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, nil
 		}
 
@@ -134,7 +158,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			InputSchema: map[string]interface{}{"type": "object"},
 		}
 
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, nil
 		}
 
@@ -172,7 +196,7 @@ func TestServer_ListTools(t *testing.T) {
 	})
 
 	t.Run("Multiple tools", func(t *testing.T) {
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, nil
 		}
 
@@ -269,7 +293,7 @@ func TestServer_HandleRequest(t *testing.T) {
 
 	t.Run("Tools list method", func(t *testing.T) {
 		// Register a tool first
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, nil
 		}
 		server.RegisterTool("test_tool", Tool{
@@ -308,7 +332,7 @@ func TestServer_HandleRequest(t *testing.T) {
 
 	t.Run("Tools call method", func(t *testing.T) {
 		// Register a tool
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return map[string]string{"result": "success"}, nil
 		}
 		server.RegisterTool("test_tool", Tool{
@@ -437,7 +461,7 @@ func TestServer_HandleToolCall(t *testing.T) {
 	})
 
 	t.Run("Handler error", func(t *testing.T) {
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("handler error")
 		}
 		server.RegisterTool("error_tool", Tool{
@@ -478,7 +502,7 @@ func TestServer_HandleToolCall(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		handler := func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return map[string]string{"status": "ok"}, nil
 		}
 		server.RegisterTool("success_tool", Tool{
@@ -687,14 +711,7 @@ func TestServer_RegisterToolsFromFiles(t *testing.T) {
 	handlersFile := filepath.Join(tmpDir, "handlers.json")
 
 	t.Run("Valid JSON files", func(t *testing.T) {
-		toolsJSON := `[
-			{
-				"Name": "test_tool",
-				"Description": "Test tool",
-				"ServiceName": "test-service",
-				"InputSchema": {"type": "object"}
-			}
-		]`
+		toolsJSON := testToolsJSON
 		os.WriteFile(toolsFile, []byte(toolsJSON), 0644)
 
 		handlersJSON := `{
@@ -737,16 +754,7 @@ func TestServer_RegisterToolsFromFiles(t *testing.T) {
 `
 		os.WriteFile(toolsYAMLFile, []byte(toolsYAML), 0644)
 
-		handlersYAML := `
-serviceConfig:
-  test-service:
-    baseURL: https://api.example.com
-handlers:
-  test_tool:
-    type: http
-    method: POST
-    path: /api/test
-`
+		handlersYAML := testHandlersYAML
 		os.WriteFile(handlersYAMLFile, []byte(handlersYAML), 0644)
 
 		err := server.RegisterToolsFromFiles(toolsYAMLFile, handlersYAMLFile)
@@ -776,16 +784,7 @@ handlers:
 		]`
 		os.WriteFile(toolsJSONFile, []byte(toolsJSON), 0644)
 
-		handlersYAML := `
-serviceConfig:
-  test-service:
-    baseURL: https://api.example.com
-handlers:
-  test_tool:
-    type: http
-    method: POST
-    path: /api/test
-`
+		handlersYAML := testHandlersYAML
 		os.WriteFile(handlersYAMLFile, []byte(handlersYAML), 0644)
 
 		err := server.RegisterToolsFromFiles(toolsJSONFile, handlersYAMLFile)

@@ -65,7 +65,7 @@ func TestTransformAuthorization(t *testing.T) {
 
 func TestExtractAuthorization_PassThrough(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{
@@ -80,7 +80,7 @@ func TestExtractAuthorization_PassThrough(t *testing.T) {
 
 func TestExtractAuthorization_Transform(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{
@@ -129,7 +129,7 @@ func TestExtractAuthorization_Static(t *testing.T) {
 
 func TestExtractAuthorization_None(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{
@@ -144,7 +144,7 @@ func TestExtractAuthorization_None(t *testing.T) {
 
 func TestExtractAuthorization_DefaultPassThrough(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	// No config - should default to pass-through
@@ -156,7 +156,7 @@ func TestExtractAuthorization_DefaultPassThrough(t *testing.T) {
 
 func TestExtractAuthorization_ServiceConfig(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	// Service config with pass-through
@@ -173,7 +173,7 @@ func TestExtractAuthorization_ServiceConfig(t *testing.T) {
 
 func TestExtractAuthorization_HandlerOverridesService(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	serviceConfig := &AuthorizationConfig{
@@ -193,7 +193,7 @@ func TestExtractAuthorization_HandlerOverridesService(t *testing.T) {
 
 func TestExtractAuthorization_UnknownStrategy(t *testing.T) {
 	ctx := context.Background()
-	authHeader := "Bearer test-token"
+	authHeader := testBearerToken
 	ctx = auth.WithAuthorization(ctx, authHeader)
 
 	config := &AuthorizationConfig{

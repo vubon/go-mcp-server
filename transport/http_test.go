@@ -69,7 +69,7 @@ func TestHTTPTransport_ServeHTTP_InvalidMethod(t *testing.T) {
 
 	for _, method := range tests {
 		t.Run(method, func(t *testing.T) {
-			req := httptest.NewRequest(method, "/jsonrpc", nil)
+			req := httptest.NewRequest(method, "/jsonrpc", http.NoBody)
 			w := httptest.NewRecorder()
 
 			transport.ServeHTTP(w, req)
@@ -355,7 +355,7 @@ func TestHTTPTransport_AuthorizationContext(t *testing.T) {
 		Name:        "test_auth",
 		Description: "Test auth",
 		InputSchema: map[string]interface{}{"type": "object"},
-	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	}, func(ctx context.Context, _ map[string]interface{}) (interface{}, error) {
 		auth, ok := auth.AuthorizationFromContext(ctx)
 		if !ok {
 			return map[string]interface{}{"auth": "not found"}, nil
