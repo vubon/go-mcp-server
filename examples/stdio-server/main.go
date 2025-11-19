@@ -20,7 +20,7 @@ func main() {
 	})
 
 	// Register a simple greet tool
-	server.RegisterTool("greet", mcpserver.Tool{
+	greetTool := mcpserver.Tool{
 		Name:        "greet",
 		Description: "Greets a person by name",
 		InputSchema: map[string]interface{}{
@@ -33,7 +33,8 @@ func main() {
 			},
 			"required": []string{"name"},
 		},
-	}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	}
+	server.RegisterTool("greet", &greetTool, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 		name, ok := args["name"].(string)
 		if !ok {
 			return nil, fmt.Errorf("invalid parameter: name must be a string")

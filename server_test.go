@@ -102,7 +102,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			return map[string]string{"result": "success"}, nil
 		}
 
-		err := server.RegisterTool("test_tool", tool, handler)
+		err := server.RegisterTool("test_tool", &tool, handler)
 		if err != nil {
 			t.Fatalf("RegisterTool failed: %v", err)
 		}
@@ -127,7 +127,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			return nil, nil
 		}
 
-		err := server.RegisterTool("", tool, handler)
+		err := server.RegisterTool("", &tool, handler)
 		if err == nil {
 			t.Error("Expected error for empty tool name")
 		}
@@ -143,7 +143,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			InputSchema: map[string]interface{}{"type": "object"},
 		}
 
-		err := server.RegisterTool("test_tool", tool, nil)
+		err := server.RegisterTool("test_tool", &tool, nil)
 		if err == nil {
 			t.Error("Expected error for nil handler")
 		}
@@ -162,7 +162,7 @@ func TestServer_RegisterTool(t *testing.T) {
 			return nil, nil
 		}
 
-		err := server.RegisterTool("auto_name", tool, handler)
+		err := server.RegisterTool("auto_name", &tool, handler)
 		if err != nil {
 			t.Fatalf("RegisterTool failed: %v", err)
 		}
@@ -200,9 +200,12 @@ func TestServer_ListTools(t *testing.T) {
 			return nil, nil
 		}
 
-		server.RegisterTool("tool1", Tool{Name: "tool1", InputSchema: map[string]interface{}{}}, handler)
-		server.RegisterTool("tool2", Tool{Name: "tool2", InputSchema: map[string]interface{}{}}, handler)
-		server.RegisterTool("tool3", Tool{Name: "tool3", InputSchema: map[string]interface{}{}}, handler)
+		tool1 := Tool{Name: "tool1", InputSchema: map[string]interface{}{}}
+		tool2 := Tool{Name: "tool2", InputSchema: map[string]interface{}{}}
+		tool3 := Tool{Name: "tool3", InputSchema: map[string]interface{}{}}
+		server.RegisterTool("tool1", &tool1, handler)
+		server.RegisterTool("tool2", &tool2, handler)
+		server.RegisterTool("tool3", &tool3, handler)
 
 		tools := server.ListTools()
 		if len(tools) != 3 {
@@ -296,11 +299,12 @@ func TestServer_HandleRequest(t *testing.T) {
 		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, nil
 		}
-		server.RegisterTool("test_tool", Tool{
+		testTool := Tool{
 			Name:        "test_tool",
 			Description: "Test tool",
 			InputSchema: map[string]interface{}{"type": "object"},
-		}, handler)
+		}
+		server.RegisterTool("test_tool", &testTool, handler)
 
 		req := &Request{
 			JSONRPC: JSONRPCVersion,
@@ -335,11 +339,12 @@ func TestServer_HandleRequest(t *testing.T) {
 		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return map[string]string{"result": "success"}, nil
 		}
-		server.RegisterTool("test_tool", Tool{
+		testTool := Tool{
 			Name:        "test_tool",
 			Description: "Test tool",
 			InputSchema: map[string]interface{}{"type": "object"},
-		}, handler)
+		}
+		server.RegisterTool("test_tool", &testTool, handler)
 
 		params := ToolCallParams{
 			Name:      "test_tool",
@@ -464,11 +469,12 @@ func TestServer_HandleToolCall(t *testing.T) {
 		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("handler error")
 		}
-		server.RegisterTool("error_tool", Tool{
+		errorTool := Tool{
 			Name:        "error_tool",
 			Description: "Error tool",
 			InputSchema: map[string]interface{}{"type": "object"},
-		}, handler)
+		}
+		server.RegisterTool("error_tool", &errorTool, handler)
 
 		params := ToolCallParams{
 			Name:      "error_tool",
@@ -505,11 +511,12 @@ func TestServer_HandleToolCall(t *testing.T) {
 		handler := func(_ context.Context, _ map[string]interface{}) (interface{}, error) {
 			return map[string]string{"status": "ok"}, nil
 		}
-		server.RegisterTool("success_tool", Tool{
+		successTool := Tool{
 			Name:        "success_tool",
 			Description: "Success tool",
 			InputSchema: map[string]interface{}{"type": "object"},
-		}, handler)
+		}
+		server.RegisterTool("success_tool", &successTool, handler)
 
 		params := ToolCallParams{
 			Name:      "success_tool",

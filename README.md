@@ -40,7 +40,7 @@ func main() {
     })
     
     // Register a tool
-    server.RegisterTool("greet", mcpserver.Tool{
+    greetTool := mcpserver.Tool{
         Name:        "greet",
         Description: "Greets a person",
         InputSchema: map[string]interface{}{
@@ -53,7 +53,8 @@ func main() {
             },
             "required": []string{"name"},
         },
-    }, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+    }
+    server.RegisterTool("greet", &greetTool, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
         name := args["name"].(string)
         return map[string]string{
             "greeting": "Hello " + name,
@@ -87,13 +88,14 @@ server := mcpserver.New(&mcpserver.Config{
 
 **Programmatic Registration:**
 ```go
-server.RegisterTool("tool_name", mcpserver.Tool{
+tool := mcpserver.Tool{
     Name:        "tool_name",
     Description: "Tool description",
     InputSchema: map[string]interface{}{
         // JSON Schema definition
     },
-}, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+}
+server.RegisterTool("tool_name", &tool, func(ctx context.Context, args map[string]interface{}) (interface{}, error) {
     // Tool implementation
     return result, nil
 })

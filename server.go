@@ -46,8 +46,8 @@ func New(config *Config) *Server {
 	}
 }
 
-// RegisterTool registers a tool with the server
-func (s *Server) RegisterTool(name string, tool Tool, handler ToolHandler) error {
+// RegisterTool registers a tool with the server.
+func (s *Server) RegisterTool(name string, tool *Tool, handler ToolHandler) error {
 	if name == "" {
 		return fmt.Errorf("tool name cannot be empty")
 	}
@@ -58,7 +58,7 @@ func (s *Server) RegisterTool(name string, tool Tool, handler ToolHandler) error
 		return fmt.Errorf("tool handler cannot be nil")
 	}
 
-	s.tools[name] = tool
+	s.tools[name] = *tool
 	s.handlers[name] = handler
 	return nil
 }
@@ -321,7 +321,7 @@ func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *Handl
 		tool := toolFile.ToTool()
 
 		// Register tool
-		if err := s.RegisterTool(toolFile.Name, tool, handler); err != nil {
+		if err := s.RegisterTool(toolFile.Name, &tool, handler); err != nil {
 			return fmt.Errorf("failed to register tool %s: %w", toolFile.Name, err)
 		}
 	}

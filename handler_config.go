@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vubon/go-mcp-server/auth"
 	"gopkg.in/yaml.v3"
+
+	"github.com/vubon/go-mcp-server/auth"
 )
 
 // Authorization strategy constants
@@ -202,14 +203,16 @@ func valueToString(v interface{}) string {
 	}
 }
 
-// substitutePathParams substitutes path parameters like {param_name} with values from args
-// Returns the substituted path and a map of removed parameters
-func substitutePathParams(path string, args map[string]interface{}) (string, map[string]interface{}) {
+// substitutePathParams substitutes path parameters like {param_name} with values from args.
+// Returns the substituted path and a map of removed parameters.
+func substitutePathParams(
+	path string, args map[string]interface{},
+) (substitutedPath string, removedParams map[string]interface{}) {
 	if len(args) == 0 {
 		return path, make(map[string]interface{})
 	}
 
-	removed := make(map[string]interface{})
+	removedParams = make(map[string]interface{})
 
 	// Use strings.Builder for efficient string building
 	var builder strings.Builder
@@ -246,7 +249,7 @@ func substitutePathParams(path string, args map[string]interface{}) (string, map
 		if value, exists := args[paramName]; exists {
 			valueStr := valueToString(value)
 			builder.WriteString(valueStr)
-			removed[paramName] = value
+			removedParams[paramName] = value
 			start = paramEnd + 1
 		} else {
 			// Parameter not found, keep placeholder as-is
@@ -255,7 +258,8 @@ func substitutePathParams(path string, args map[string]interface{}) (string, map
 		}
 	}
 
-	return builder.String(), removed
+	substitutedPath = builder.String()
+	return substitutedPath, removedParams
 }
 
 // transformAuthorization transforms an authorization header based on transform configuration

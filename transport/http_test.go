@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/vubon/go-mcp-server"
+	mcpserver "github.com/vubon/go-mcp-server"
 	"github.com/vubon/go-mcp-server/auth"
 )
 
@@ -351,11 +351,12 @@ func TestHTTPTransport_AuthorizationContext(t *testing.T) {
 	})
 
 	// Register a tool that checks for authorization in context
-	server.RegisterTool("test_auth", mcpserver.Tool{
+	testAuthTool := mcpserver.Tool{
 		Name:        "test_auth",
 		Description: "Test auth",
 		InputSchema: map[string]interface{}{"type": "object"},
-	}, func(ctx context.Context, _ map[string]interface{}) (interface{}, error) {
+	}
+	server.RegisterTool("test_auth", &testAuthTool, func(ctx context.Context, _ map[string]interface{}) (interface{}, error) {
 		auth, ok := auth.AuthorizationFromContext(ctx)
 		if !ok {
 			return map[string]interface{}{"auth": "not found"}, nil

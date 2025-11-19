@@ -17,25 +17,28 @@ help:
 # Run tests
 test:
 	@echo "Running tests..."
-	@go test -v ./...
+	@go test -v $(shell go list ./... | grep -v /examples)
 
 # Run tests with coverage
 test-cover:
 	@echo "Running tests with coverage..."
-	@go test -v -coverprofile=coverage.out -covermode=atomic ./...
+	@go test -v -coverprofile=coverage.out -covermode=atomic $(shell go list ./... | grep -v /examples)
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
 # Run tests with race detector
 test-race:
 	@echo "Running tests with race detector..."
-	@go test -v -race ./...
+	@go test -v -race $(shell go list ./... | grep -v /examples)
 
 # Run linter
 lint:
 	@echo "Running linter..."
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run; \
+	@GOPATH=$$(go env GOPATH); \
+	if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run --timeout=5m; \
+	elif [ -f "$$GOPATH/bin/golangci-lint" ]; then \
+		$$GOPATH/bin/golangci-lint run --timeout=5m; \
 	else \
 		echo "golangci-lint not installed. Install with: make install-tools"; \
 		exit 1; \
@@ -44,8 +47,11 @@ lint:
 # Run linter and fix issues
 lint-fix:
 	@echo "Running linter and fixing issues..."
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run --fix; \
+	@GOPATH=$$(go env GOPATH); \
+	if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run --fix --timeout=5m; \
+	elif [ -f "$$GOPATH/bin/golangci-lint" ]; then \
+		$$GOPATH/bin/golangci-lint run --fix --timeout=5m; \
 	else \
 		echo "golangci-lint not installed. Install with: make install-tools"; \
 		exit 1; \
