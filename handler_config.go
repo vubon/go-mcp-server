@@ -79,6 +79,8 @@ type HandlerConfig struct {
 
 // HandlersConfig represents the complete handlers configuration
 type HandlersConfig struct {
+	Version       string                   `json:"version,omitempty" yaml:"version,omitempty"` // Optional version string
+	ConfigHash    string                   `json:"hash,omitempty" yaml:"hash,omitempty"`       // Optional hash of config
 	ServiceConfig map[string]ServiceConfig `json:"serviceConfig" yaml:"serviceConfig"`
 	Handlers      map[string]HandlerConfig `json:"handlers" yaml:"handlers"`
 }
@@ -91,6 +93,12 @@ type ToolFile struct {
 	APIVersion  string                 `json:"APIVersion,omitempty" yaml:"APIVersion,omitempty"`
 	Endpoint    string                 `json:"Endpoint,omitempty" yaml:"Endpoint,omitempty"`
 	InputSchema map[string]interface{} `json:"InputSchema" yaml:"InputSchema"`
+}
+
+// ToolsConfig represents a tools configuration file (with optional version)
+type ToolsConfig struct {
+	Version string     `json:"version,omitempty" yaml:"version,omitempty"` // Optional version string
+	Tools   []ToolFile `json:"tools,omitempty" yaml:"tools,omitempty"`     // Tools array (when wrapped)
 }
 
 // ToTool converts ToolFile to Tool (with lowercase JSON tags for API compatibility)
@@ -106,21 +114,47 @@ func (tf *ToolFile) ToTool() Tool {
 }
 
 // parseToolsFromJSON parses tools from JSON bytes
-func parseToolsFromJSON(data []byte) ([]ToolFile, error) {
+// Supports both formats:
+// 1. Array format: [{"Name": "tool1", ...}, ...]
+// 2. Wrapped format: {"version": "1.0.0", "tools": [{"Name": "tool1", ...}, ...]}
+func parseToolsFromJSON(data []byte) ([]ToolFile, string, error) {
+	// Try wrapped format first
+	var wrappedConfig ToolsConfig
+	if err := json.Unmarshal(data, &wrappedConfig); err == nil {
+		// Check if it's actually wrapped format (has tools field)
+		if wrappedConfig.Tools != nil {
+			return wrappedConfig.Tools, wrappedConfig.Version, nil
+		}
+	}
+
+	// Fall back to array format
 	var tools []ToolFile
 	if err := json.Unmarshal(data, &tools); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return tools, nil
+	return tools, "", nil
 }
 
 // parseToolsFromYAML parses tools from YAML bytes
-func parseToolsFromYAML(data []byte) ([]ToolFile, error) {
+// Supports both formats:
+// 1. Array format: - Name: tool1 ...
+// 2. Wrapped format: version: "1.0.0" tools: - Name: tool1 ...
+func parseToolsFromYAML(data []byte) ([]ToolFile, string, error) {
+	// Try wrapped format first
+	var wrappedConfig ToolsConfig
+	if err := yaml.Unmarshal(data, &wrappedConfig); err == nil {
+		// Check if it's actually wrapped format (has tools field)
+		if wrappedConfig.Tools != nil {
+			return wrappedConfig.Tools, wrappedConfig.Version, nil
+		}
+	}
+
+	// Fall back to array format
 	var tools []ToolFile
 	if err := yaml.Unmarshal(data, &tools); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return tools, nil
+	return tools, "", nil
 }
 
 // parseHandlersFromJSON parses handlers configuration from JSON bytes

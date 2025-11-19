@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -21,6 +22,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to register tools: %v", err)
 	}
+
+	// Log configuration version info
+	configInfo := server.GetConfigInfo()
+	log.Printf("📋 Configuration loaded: version=%s, hash=%s, tools=%d",
+		configInfo["version"], configInfo["hash"], configInfo["toolCount"])
 
 	// Alternative: Manual tool registration (commented out)
 	// server.RegisterTool("greet", mcpserver.Tool{
@@ -52,9 +58,16 @@ func main() {
 	// Setup routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/jsonrpc", httpHandler.ServeHTTP)
+	
+	// Health check endpoint with configuration info
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		configInfo := server.GetConfigInfo()
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": "healthy",
+			"config": configInfo,
+		})
 	})
 
 	port := "8080"

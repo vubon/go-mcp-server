@@ -1,41 +1,44 @@
-[
-  {
-    "Name": "greet",
-    "Description": "Greets a person by name",
-    "ServiceName": "greeting-service",
-    "APIVersion": "v1",
-    "Endpoint": "/api/v1/greet",
-    "InputSchema": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the person to greet"
-        }
-      },
-      "required": [
-        "name"
-      ]
+{
+  "version": "1.0.0",
+  "tools": [
+    {
+      "Name": "greet",
+      "Description": "Greets a person by name",
+      "ServiceName": "greeting-service",
+      "APIVersion": "v1",
+      "Endpoint": "/api/v1/greet",
+      "InputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the person to greet"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "Name": "hello",
+      "Description": "Hello a person by name",
+      "ServiceName": "greeting-service",
+      "APIVersion": "v1",
+      "Endpoint": "/api/v1/hello",
+      "InputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the person to greet"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
     }
-  },
-  {
-    "Name": "hello",
-    "Description": "Hello a person by name",
-    "ServiceName": "greeting-service",
-    "APIVersion": "v1",
-    "Endpoint": "/api/v1/hello",
-    "InputSchema": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the person to greet"
-        }
-      },
-      "required": [
-        "name"
-      ]
-    }
-  }
-]
+  ]
+}
 
