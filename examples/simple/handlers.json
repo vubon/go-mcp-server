@@ -35,6 +35,21 @@
         "X-Request-ID": "${REQUEST_ID}"
       },
       "timeout": "15s"
+    },
+    "getUsers": {
+      "type": "http",
+      "method": "GET",
+      "path": "/api/v1/users",
+      "queryParams": {
+        "page": "{page}",
+        "limit": "{limit}",
+        "sort": "{sort}",
+        "format": "json"
+      },
+      "headers": {
+        "X-Request-ID": "${REQUEST_ID}"
+      },
+      "timeout": "10s"
     }
   }
 }

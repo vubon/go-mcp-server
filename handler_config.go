@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -72,6 +73,7 @@ type HandlerConfig struct {
 	Type          string               `json:"type" yaml:"type"`
 	Method        string               `json:"method" yaml:"method"`
 	Path          string               `json:"path" yaml:"path"`
+	QueryParams   map[string]string    `json:"queryParams,omitempty" yaml:"queryParams,omitempty"`
 	Headers       map[string]string    `json:"headers,omitempty" yaml:"headers,omitempty"`
 	Timeout       string               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Authorization *AuthorizationConfig `json:"authorization,omitempty" yaml:"authorization,omitempty"`
@@ -237,6 +239,49 @@ func valueToString(v interface{}) string {
 	}
 }
 
+// substituteQueryParams substitutes query parameter templates with values from args.
+// Returns the query string and a map of removed parameters.
+// Query parameter templates can be:
+//   - "{paramName}" - Dynamic parameter from args
+//   - "staticValue" - Static value (not a placeholder)
+func substituteQueryParams(
+	queryParams map[string]string, args map[string]interface{},
+) (queryString string, removedParams map[string]interface{}) {
+	if len(queryParams) == 0 {
+		return "", make(map[string]interface{})
+	}
+
+	removedParams = make(map[string]interface{})
+	var values []string
+
+	for key, template := range queryParams {
+		// Check if template is a placeholder {paramName}
+		if strings.HasPrefix(template, "{") && strings.HasSuffix(template, "}") {
+			paramName := template[1 : len(template)-1]
+
+			// Get value from args
+			if value, exists := args[paramName]; exists {
+				valueStr := valueToString(value)
+				// URL encode the value
+				encodedValue := url.QueryEscape(valueStr)
+				values = append(values, key+"="+encodedValue)
+				removedParams[paramName] = value
+			}
+			// If not found, skip this query parameter
+		} else {
+			// Static value (not a placeholder)
+			encodedValue := url.QueryEscape(template)
+			values = append(values, key+"="+encodedValue)
+		}
+	}
+
+	if len(values) > 0 {
+		queryString = "?" + strings.Join(values, "&")
+	}
+
+	return queryString, removedParams
+}
+
 // substitutePathParams substitutes path parameters like {param_name} with values from args.
 // Returns the substituted path and a map of removed parameters.
 func substitutePathParams(
@@ -399,6 +444,7 @@ func getAuthHeaderName(handlerConfig, serviceConfig *AuthorizationConfig) string
 type httpHandlerConfig struct {
 	baseURL      string
 	pathTemplate string
+	queryParams  map[string]string
 	method       string
 	timeout      time.Duration
 	headers      map[string]string
@@ -458,9 +504,18 @@ func resolveHandlerConfig(
 		Timeout: handlerTimeout,
 	}
 
+	// Copy query params from handler config
+	queryParams := make(map[string]string)
+	if handlerConfig.QueryParams != nil {
+		for k, v := range handlerConfig.QueryParams {
+			queryParams[k] = v
+		}
+	}
+
 	return &httpHandlerConfig{
 		baseURL:      serviceConfig.BaseURL,
 		pathTemplate: pathTemplate,
+		queryParams:  queryParams,
 		method:       handlerConfig.Method,
 		timeout:      handlerTimeout,
 		headers:      mergedHeaders,
@@ -475,16 +530,28 @@ func (cfg *httpHandlerConfig) buildHTTPRequest(
 	ctx context.Context, args map[string]interface{},
 ) (*http.Request, error) {
 	// Substitute path parameters from args
-	path, removedParams := substitutePathParams(cfg.pathTemplate, args)
+	path, pathRemovedParams := substitutePathParams(cfg.pathTemplate, args)
 
-	// Build full URL with substituted path
-	fullURL := cfg.baseURL + path
+	// Substitute query parameters from args
+	queryString, queryRemovedParams := substituteQueryParams(cfg.queryParams, args)
 
-	// Create a copy of args without path parameters (they're now in the URL)
+	// Combine removed parameters (path + query)
+	allRemovedParams := make(map[string]interface{})
+	for k, v := range pathRemovedParams {
+		allRemovedParams[k] = v
+	}
+	for k, v := range queryRemovedParams {
+		allRemovedParams[k] = v
+	}
+
+	// Build full URL with substituted path and query string
+	fullURL := cfg.baseURL + path + queryString
+
+	// Create a copy of args without path/query parameters (they're now in the URL)
 	bodyArgs := make(map[string]interface{})
 	for k, v := range args {
-		// Skip parameters that were used in the path
-		if _, wasRemoved := removedParams[k]; !wasRemoved {
+		// Skip parameters that were used in the path or query
+		if _, wasRemoved := allRemovedParams[k]; !wasRemoved {
 			bodyArgs[k] = v
 		}
 	}

@@ -38,6 +38,30 @@
           "name"
         ]
       }
+    },
+    {
+      "Name": "getUsers",
+      "Description": "Get a list of users with pagination and sorting",
+      "ServiceName": "greeting-service",
+      "APIVersion": "v1",
+      "Endpoint": "/api/v1/users",
+      "InputSchema": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Page number (default: 1)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of items per page (default: 10)"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort field (e.g., 'name', 'created_at')"
+          }
+        }
+      }
     }
   ]
 }
