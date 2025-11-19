@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -13,6 +14,7 @@ import (
 const (
 	testBearerToken    = "Bearer test-token"
 	testBearerToken123 = "Bearer test-token-123"
+	testVersion100     = "1.0.0"
 	testToolsJSON      = `[
 			{
 				"Name": "test_tool",
@@ -21,6 +23,46 @@ const (
 				"InputSchema": {"type": "object"}
 			}
 		]`
+	testHandlersJSON = `{
+			"serviceConfig": {
+				"test-service": {
+					"baseURL": "https://api.example.com"
+				}
+			},
+			"handlers": {
+				"test_tool": {
+					"type": "http",
+					"method": "POST",
+					"path": "/api/test"
+				}
+			}
+		}`
+	testHandlersJSONVersion200 = `{
+			"version": "2.0.0",
+			"serviceConfig": {
+				"test-service": {
+					"baseURL": "https://api.example.com"
+				}
+			},
+			"handlers": {
+				"test_tool": {
+					"type": "http",
+					"method": "POST",
+					"path": "/api/test"
+				}
+			}
+		}`
+	testToolsJSONWithVersion = `{
+			"version": "1.0.0",
+			"tools": [
+				{
+					"Name": "test_tool",
+					"Description": "Test tool",
+					"ServiceName": "test-service",
+					"InputSchema": {"type": "object"}
+				}
+			]
+		}`
 	testHandlersYAML = `
 serviceConfig:
   test-service:
@@ -276,8 +318,8 @@ func TestServer_HandleRequest(t *testing.T) {
 		if serverInfo["name"] != "test-server" {
 			t.Errorf("Expected server name 'test-server', got %v", serverInfo["name"])
 		}
-		if serverInfo["version"] != "1.0.0" {
-			t.Errorf("Expected server version '1.0.0', got %v", serverInfo["version"])
+		if serverInfo["version"] != testVersion100 {
+			t.Errorf("Expected server version %q, got %v", testVersion100, serverInfo["version"])
 		}
 	})
 
@@ -721,20 +763,7 @@ func TestServer_RegisterToolsFromFiles(t *testing.T) {
 		toolsJSON := testToolsJSON
 		os.WriteFile(toolsFile, []byte(toolsJSON), 0644)
 
-		handlersJSON := `{
-			"serviceConfig": {
-				"test-service": {
-					"baseURL": "https://api.example.com"
-				}
-			},
-			"handlers": {
-				"test_tool": {
-					"type": "http",
-					"method": "POST",
-					"path": "/api/test"
-				}
-			}
-		}`
+		handlersJSON := testHandlersJSON
 		os.WriteFile(handlersFile, []byte(handlersJSON), 0644)
 
 		err := server.RegisterToolsFromFiles(toolsFile, handlersFile)
@@ -883,6 +912,231 @@ func TestServer_RegisterToolsFromConfig_Validation(t *testing.T) {
 		err := server.registerToolsFromConfig(tools, handlersConfig)
 		if err == nil {
 			t.Error("Expected error for missing service config")
+		}
+	})
+}
+
+func TestServer_ConfigurationVersioning(t *testing.T) {
+	server := New(&Config{Name: "test-server", Version: "1.0.0"})
+
+	t.Run("GetConfigVersion before registration", func(t *testing.T) {
+		version := server.GetConfigVersion()
+		if version != "" {
+			t.Errorf("Expected empty version before registration, got %q", version)
+		}
+		hash := server.GetConfigHash()
+		if hash != "" {
+			t.Errorf("Expected empty hash before registration, got %q", hash)
+		}
+	})
+
+	t.Run("Config version from hash when no version specified", func(t *testing.T) {
+		toolsJSON := testToolsJSON
+		handlersJSON := testHandlersJSON
+
+		err := server.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON))
+		if err != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err)
+		}
+
+		version := server.GetConfigVersion()
+		if version == "" {
+			t.Error("Expected non-empty version after registration")
+		}
+		if len(version) != 12 {
+			t.Errorf("Expected version to be 12 characters (hash prefix), got %d: %q", len(version), version)
+		}
+
+		hash := server.GetConfigHash()
+		if hash == "" {
+			t.Error("Expected non-empty hash after registration")
+		}
+		if len(hash) != 64 {
+			t.Errorf("Expected hash to be 64 characters (SHA256 hex), got %d: %q", len(hash), hash)
+		}
+
+		// Version should be prefix of hash
+		if !strings.HasPrefix(hash, version) {
+			t.Errorf("Expected version %q to be prefix of hash %q", version, hash)
+		}
+	})
+
+	t.Run("Config version from explicit version field", func(t *testing.T) {
+		server2 := New(&Config{Name: "test-server", Version: testVersion100})
+		toolsJSON := testToolsJSON
+		handlersJSONWithVersion123 := `{
+				"version": "1.2.3",
+				"serviceConfig": {
+					"test-service": {
+						"baseURL": "https://api.example.com"
+					}
+				},
+				"handlers": {
+					"test_tool": {
+						"type": "http",
+						"method": "POST",
+						"path": "/api/test"
+					}
+				}
+			}`
+
+		err := server2.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSONWithVersion123))
+		if err != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err)
+		}
+
+		version := server2.GetConfigVersion()
+		if version != "1.2.3" {
+			t.Errorf("Expected version '1.2.3', got %q", version)
+		}
+
+		hash := server2.GetConfigHash()
+		if hash == "" {
+			t.Error("Expected non-empty hash after registration")
+		}
+	})
+
+	t.Run("GetConfigInfo returns all metadata", func(t *testing.T) {
+		server3 := New(&Config{Name: "test-server", Version: testVersion100})
+		toolsJSON := testToolsJSON
+		handlersJSON := testHandlersJSONVersion200
+
+		err := server3.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON))
+		if err != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err)
+		}
+
+		info := server3.GetConfigInfo()
+		if info["version"] != "2.0.0" {
+			t.Errorf("Expected version '2.0.0', got %v", info["version"])
+		}
+		if info["hash"] == "" {
+			t.Error("Expected non-empty hash")
+		}
+		if info["toolCount"] != 1 {
+			t.Errorf("Expected toolCount 1, got %v", info["toolCount"])
+		}
+		if info["handlerCount"] != 1 {
+			t.Errorf("Expected handlerCount 1, got %v", info["handlerCount"])
+		}
+	})
+
+	t.Run("Same config produces same hash", func(t *testing.T) {
+		server4 := New(&Config{Name: "test-server", Version: testVersion100})
+		server5 := New(&Config{Name: "test-server", Version: testVersion100})
+
+		toolsJSON := testToolsJSON
+		handlersJSON := testHandlersJSON
+
+		err1 := server4.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON))
+		if err1 != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err1)
+		}
+
+		err2 := server5.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON))
+		if err2 != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err2)
+		}
+
+		hash1 := server4.GetConfigHash()
+		hash2 := server5.GetConfigHash()
+
+		if hash1 != hash2 {
+			t.Errorf("Expected same hash for same config, got %q and %q", hash1, hash2)
+		}
+	})
+
+	t.Run("Different config produces different hash", func(t *testing.T) {
+		server6 := New(&Config{Name: "test-server", Version: "1.0.0"})
+		server7 := New(&Config{Name: "test-server", Version: "1.0.0"})
+
+		toolsJSON := testToolsJSON
+		handlersJSON1 := `{
+			"serviceConfig": {
+				"test-service": {
+					"baseURL": "https://api.example.com"
+				}
+			},
+			"handlers": {
+				"test_tool": {
+					"type": "http",
+					"method": "POST",
+					"path": "/api/test"
+				}
+			}
+		}`
+		handlersJSON2 := `{
+			"serviceConfig": {
+				"test-service": {
+					"baseURL": "https://api.different.com"
+				}
+			},
+			"handlers": {
+				"test_tool": {
+					"type": "http",
+					"method": "POST",
+					"path": "/api/test"
+				}
+			}
+		}`
+
+		err1 := server6.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON1))
+		if err1 != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err1)
+		}
+
+		err2 := server7.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON2))
+		if err2 != nil {
+			t.Fatalf("RegisterToolsFromJSON failed: %v", err2)
+		}
+
+		hash1 := server6.GetConfigHash()
+		hash2 := server7.GetConfigHash()
+
+		if hash1 == hash2 {
+			t.Error("Expected different hashes for different configs")
+		}
+	})
+
+	t.Run("Version mismatch validation", func(t *testing.T) {
+		server8 := New(&Config{Name: "test-server", Version: testVersion100})
+		toolsJSON := testToolsJSONWithVersion
+		handlersJSON := testHandlersJSONVersion200
+
+		err := server8.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSON))
+		if err == nil {
+			t.Error("Expected error for version mismatch")
+		}
+		if err != nil && !strings.Contains(err.Error(), "version mismatch") {
+			t.Errorf("Expected version mismatch error, got: %v", err)
+		}
+	})
+
+	t.Run("Version match allows registration", func(t *testing.T) {
+		server9 := New(&Config{Name: "test-server", Version: testVersion100})
+		toolsJSON := testToolsJSONWithVersion
+		handlersJSONWithVersion100 := `{
+			"version": "1.0.0",
+			"serviceConfig": {
+				"test-service": {
+					"baseURL": "https://api.example.com"
+				}
+			},
+			"handlers": {
+				"test_tool": {
+					"type": "http",
+					"method": "POST",
+					"path": "/api/test"
+				}
+			}
+		}`
+
+		err := server9.RegisterToolsFromJSON([]byte(toolsJSON), []byte(handlersJSONWithVersion100))
+		if err != nil {
+			t.Fatalf("Expected no error for matching versions, got: %v", err)
+		}
+		if server9.GetConfigVersion() != testVersion100 {
+			t.Errorf("Expected version %q, got %q", testVersion100, server9.GetConfigVersion())
 		}
 	})
 }

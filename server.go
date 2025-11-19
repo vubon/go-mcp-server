@@ -2,6 +2,8 @@ package mcpserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,9 +30,11 @@ type Config struct {
 
 // Server handles MCP tool calls
 type Server struct {
-	config   *Config
-	tools    map[string]Tool
-	handlers map[string]ToolHandler
+	config        *Config
+	tools         map[string]Tool
+	handlers      map[string]ToolHandler
+	configVersion string // Version of loaded configuration
+	configHash    string // Hash of loaded configuration (tools + handlers)
 }
 
 // New creates a new MCP server
@@ -40,9 +44,11 @@ func New(config *Config) *Server {
 	}
 
 	return &Server{
-		config:   config,
-		tools:    make(map[string]Tool),
-		handlers: make(map[string]ToolHandler),
+		config:        config,
+		tools:         make(map[string]Tool),
+		handlers:      make(map[string]ToolHandler),
+		configVersion: "",
+		configHash:    "",
 	}
 }
 
@@ -204,7 +210,7 @@ func formatResultAsContent(result interface{}) []map[string]interface{} {
 // RegisterToolsFromJSON registers tools from JSON data
 func (s *Server) RegisterToolsFromJSON(toolsData, handlersData []byte) error {
 	// Parse tools
-	tools, err := parseToolsFromJSON(toolsData)
+	tools, toolsVersion, err := parseToolsFromJSON(toolsData)
 	if err != nil {
 		return fmt.Errorf("failed to parse tools JSON: %w", err)
 	}
@@ -215,13 +221,38 @@ func (s *Server) RegisterToolsFromJSON(toolsData, handlersData []byte) error {
 		return fmt.Errorf("failed to parse handlers JSON: %w", err)
 	}
 
+	// Validate version consistency
+	if toolsVersion != "" && handlersConfig.Version != "" {
+		if toolsVersion != handlersConfig.Version {
+			return fmt.Errorf(
+				"version mismatch: tools version %q does not match handlers version %q",
+				toolsVersion, handlersConfig.Version,
+			)
+		}
+	}
+
+	// Calculate hash of configuration
+	configHash := calculateConfigHash(toolsData, handlersData)
+
+	// Store configuration metadata
+	s.configHash = configHash
+	// Prefer handlers version, then tools version, then hash
+	if handlersConfig.Version != "" {
+		s.configVersion = handlersConfig.Version
+	} else if toolsVersion != "" {
+		s.configVersion = toolsVersion
+	} else {
+		// Use hash as version if no version specified
+		s.configVersion = configHash[:12] // First 12 chars of hash
+	}
+
 	return s.registerToolsFromConfig(tools, handlersConfig)
 }
 
 // RegisterToolsFromYAML registers tools from YAML data
 func (s *Server) RegisterToolsFromYAML(toolsData, handlersData []byte) error {
 	// Parse tools
-	tools, err := parseToolsFromYAML(toolsData)
+	tools, toolsVersion, err := parseToolsFromYAML(toolsData)
 	if err != nil {
 		return fmt.Errorf("failed to parse tools YAML: %w", err)
 	}
@@ -230,6 +261,31 @@ func (s *Server) RegisterToolsFromYAML(toolsData, handlersData []byte) error {
 	handlersConfig, err := parseHandlersFromYAML(handlersData)
 	if err != nil {
 		return fmt.Errorf("failed to parse handlers YAML: %w", err)
+	}
+
+	// Validate version consistency
+	if toolsVersion != "" && handlersConfig.Version != "" {
+		if toolsVersion != handlersConfig.Version {
+			return fmt.Errorf(
+				"version mismatch: tools version %q does not match handlers version %q",
+				toolsVersion, handlersConfig.Version,
+			)
+		}
+	}
+
+	// Calculate hash of configuration
+	configHash := calculateConfigHash(toolsData, handlersData)
+
+	// Store configuration metadata
+	s.configHash = configHash
+	// Prefer handlers version, then tools version, then hash
+	if handlersConfig.Version != "" {
+		s.configVersion = handlersConfig.Version
+	} else if toolsVersion != "" {
+		s.configVersion = toolsVersion
+	} else {
+		// Use hash as version if no version specified
+		s.configVersion = configHash[:12] // First 12 chars of hash
 	}
 
 	return s.registerToolsFromConfig(tools, handlersConfig)
@@ -255,10 +311,11 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 
 	// Parse tools based on format
 	var tools []ToolFile
+	var toolsVersion string
 	if toolsExt == YAMLExtension || toolsExt == YMLExtension {
-		tools, err = parseToolsFromYAML(toolsData)
+		tools, toolsVersion, err = parseToolsFromYAML(toolsData)
 	} else {
-		tools, err = parseToolsFromJSON(toolsData)
+		tools, toolsVersion, err = parseToolsFromJSON(toolsData)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to parse tools file: %w", err)
@@ -273,6 +330,31 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("failed to parse handlers file: %w", err)
+	}
+
+	// Validate version consistency
+	if toolsVersion != "" && handlersConfig.Version != "" {
+		if toolsVersion != handlersConfig.Version {
+			return fmt.Errorf(
+				"version mismatch: tools version %q does not match handlers version %q",
+				toolsVersion, handlersConfig.Version,
+			)
+		}
+	}
+
+	// Calculate hash of configuration
+	configHash := calculateConfigHash(toolsData, handlersData)
+
+	// Store configuration metadata
+	s.configHash = configHash
+	// Prefer handlers version, then tools version, then hash
+	if handlersConfig.Version != "" {
+		s.configVersion = handlersConfig.Version
+	} else if toolsVersion != "" {
+		s.configVersion = toolsVersion
+	} else {
+		// Use hash as version if no version specified
+		s.configVersion = configHash[:12] // First 12 chars of hash
 	}
 
 	return s.registerToolsFromConfig(tools, handlersConfig)
@@ -327,4 +409,33 @@ func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *Handl
 	}
 
 	return nil
+}
+
+// calculateConfigHash calculates SHA256 hash of tools and handlers configuration
+func calculateConfigHash(toolsData, handlersData []byte) string {
+	hasher := sha256.New()
+	hasher.Write(toolsData)
+	hasher.Write([]byte("\n---\n")) // Separator
+	hasher.Write(handlersData)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// GetConfigVersion returns the version of the loaded configuration
+func (s *Server) GetConfigVersion() string {
+	return s.configVersion
+}
+
+// GetConfigHash returns the hash of the loaded configuration
+func (s *Server) GetConfigHash() string {
+	return s.configHash
+}
+
+// GetConfigInfo returns configuration metadata
+func (s *Server) GetConfigInfo() map[string]interface{} {
+	return map[string]interface{}{
+		"version":      s.configVersion,
+		"hash":         s.configHash,
+		"toolCount":    len(s.tools),
+		"handlerCount": len(s.handlers),
+	}
 }
