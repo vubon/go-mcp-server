@@ -111,4 +111,7 @@ issues:
     - text: "weak cryptographic primitive"
       linters:
         - gosec
+    - text: "fieldalignment"
+      linters:
+        - govet
 

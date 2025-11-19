@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vubon/go-mcp-server"
+	mcpserver "github.com/vubon/go-mcp-server"
 )
 
 func TestNewStdio(t *testing.T) {

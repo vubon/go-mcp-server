@@ -3,7 +3,7 @@ package transport
 import (
 	"context"
 
-	"github.com/vubon/go-mcp-server"
+	mcpserver "github.com/vubon/go-mcp-server"
 )
 
 // Transport is the interface that all MCP transports must implement
