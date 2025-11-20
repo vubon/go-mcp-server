@@ -2,9 +2,12 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/vubon/go-mcp-server/auth"
@@ -339,6 +342,314 @@ func TestAuthorization_NoneStrategy(t *testing.T) {
 	// Authorization should be empty string (not set)
 	if authVal, ok := resultMap["authorization"].(string); ok && authVal != "" {
 		t.Errorf("Expected no authorization header, got %v", authVal)
+	}
+}
+
+func TestAuthorization_BasicStrategy(t *testing.T) {
+	// Create a mock backend server that checks for Basic Auth
+	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "No authorization"})
+			return
+		}
+
+		// Verify it's Basic Auth format
+		if !strings.HasPrefix(authHeader, "Basic ") {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Not Basic Auth"})
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"authorization": authHeader,
+			"status":        "success",
+		})
+	}))
+	defer mockBackend.Close()
+
+	tool := ToolFile{
+		Name:        "test_tool",
+		Description: "Test tool",
+		ServiceName: "test-service",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"test": map[string]interface{}{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	handlerConfig := HandlerConfig{
+		Type:   "http",
+		Method: "POST",
+		Path:   "/test",
+		Authorization: &AuthorizationConfig{
+			Strategy: StrategyBasic,
+			BasicAuth: &BasicAuthConfig{
+				Username: "testuser",
+				Password: "testpass",
+			},
+		},
+	}
+
+	serviceConfig := ServiceConfig{
+		BaseURL: mockBackend.URL,
+	}
+
+	// Generate handler
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
+	if err != nil {
+		t.Fatalf("Failed to generate handler: %v", err)
+	}
+
+	// Test with Basic Auth (no context auth needed)
+	ctx := context.Background()
+	result, err := handler(ctx, map[string]interface{}{"test": "value"})
+	if err != nil {
+		t.Fatalf("Handler failed: %v", err)
+	}
+
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map result, got %T", result)
+	}
+
+	authHeader, ok := resultMap["authorization"].(string)
+	if !ok {
+		t.Fatal("Expected authorization header in response")
+	}
+
+	if !strings.HasPrefix(authHeader, "Basic ") {
+		t.Errorf("Expected Basic Auth header, got %q", authHeader)
+	}
+
+	// Verify the encoded value is correct
+	expectedEncoded := base64.StdEncoding.EncodeToString([]byte("testuser:testpass"))
+	if !strings.Contains(authHeader, expectedEncoded) {
+		t.Errorf("Expected Basic Auth to contain encoded credentials, got %q", authHeader)
+	}
+}
+
+func TestAuthorization_BasicStrategy_WithEnvVars(t *testing.T) {
+	// Set environment variables
+	os.Setenv("TEST_BASIC_USER", "envuser")
+	os.Setenv("TEST_BASIC_PASS", "envpass")
+	defer os.Unsetenv("TEST_BASIC_USER")
+	defer os.Unsetenv("TEST_BASIC_PASS")
+
+	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"authorization": authHeader,
+		})
+	}))
+	defer mockBackend.Close()
+
+	tool := ToolFile{
+		Name:        "test_tool",
+		Description: "Test tool",
+		ServiceName: "test-service",
+		InputSchema: map[string]interface{}{"type": "object"},
+	}
+
+	handlerConfig := HandlerConfig{
+		Type:   "http",
+		Method: "POST",
+		Path:   "/test",
+		Authorization: &AuthorizationConfig{
+			Strategy: StrategyBasic,
+			BasicAuth: &BasicAuthConfig{
+				UsernameEnv: "TEST_BASIC_USER",
+				PasswordEnv: "TEST_BASIC_PASS",
+			},
+		},
+	}
+
+	serviceConfig := ServiceConfig{
+		BaseURL: mockBackend.URL,
+	}
+
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
+	if err != nil {
+		t.Fatalf("Failed to generate handler: %v", err)
+	}
+
+	ctx := context.Background()
+	result, err := handler(ctx, map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Handler failed: %v", err)
+	}
+
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map result, got %T", result)
+	}
+
+	authHeader, ok := resultMap["authorization"].(string)
+	if !ok {
+		t.Fatal("Expected authorization header in response")
+	}
+
+	expectedEncoded := base64.StdEncoding.EncodeToString([]byte("envuser:envpass"))
+	if !strings.Contains(authHeader, expectedEncoded) {
+		t.Errorf("Expected Basic Auth with env credentials, got %q", authHeader)
+	}
+}
+
+func TestAuthorization_BasicStrategy_HeaderExtraction(t *testing.T) {
+	// Create a mock backend server that checks for Basic Auth header
+	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check for Basic Auth Authorization header
+		authHeader := r.Header.Get("Authorization")
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"authorization": authHeader,
+			"status":        "success",
+		})
+	}))
+	defer mockBackend.Close()
+
+	tool := ToolFile{
+		Name:        "test_tool",
+		Description: "Test tool",
+		ServiceName: "test-service",
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"test": map[string]interface{}{
+					"type": "string",
+				},
+			},
+		},
+	}
+
+	handlerConfig := HandlerConfig{
+		Type:   "http",
+		Method: "POST",
+		Path:   "/test",
+		Authorization: &AuthorizationConfig{
+			Strategy: StrategyBasic,
+			BasicAuth: &BasicAuthConfig{
+				UsernameHeader: "SECREAT_KEY",
+				PasswordHeader: "PASSWORD",
+			},
+		},
+	}
+
+	serviceConfig := ServiceConfig{
+		BaseURL: mockBackend.URL,
+	}
+
+	// Generate handler
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
+	if err != nil {
+		t.Fatalf("Failed to generate handler: %v", err)
+	}
+
+	// Create context with request headers
+	ctx := context.Background()
+	requestHeaders := map[string]string{
+		"SECREAT_KEY": "my-secret-value",
+		"PASSWORD":    "my-password-value",
+	}
+	ctx = auth.WithRequestHeaders(ctx, requestHeaders)
+
+	// Execute handler
+	result, err := handler(ctx, map[string]interface{}{"test": "value"})
+	if err != nil {
+		t.Fatalf("Handler failed: %v", err)
+	}
+
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected map result, got %T", result)
+	}
+
+	// Verify Basic Auth header was set correctly
+	authHeader, ok := resultMap["authorization"].(string)
+	if !ok {
+		t.Fatal("Expected authorization header in response")
+	}
+
+	if !strings.HasPrefix(authHeader, "Basic ") {
+		t.Errorf("Expected Basic Auth header, got %q", authHeader)
+	}
+
+	// Verify the encoded value is correct
+	expectedEncoded := base64.StdEncoding.EncodeToString([]byte("my-secret-value:my-password-value"))
+	if !strings.Contains(authHeader, expectedEncoded) {
+		t.Errorf("Expected Basic Auth to contain encoded credentials, got %q", authHeader)
+	}
+}
+
+func TestAuthorization_BasicStrategy_HeaderExtraction_PasswordNone(t *testing.T) {
+	// Test with passwordHeader set to "None" - should only encode username
+	mockBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"authorization": authHeader,
+		})
+	}))
+	defer mockBackend.Close()
+
+	tool := ToolFile{
+		Name:        "test_tool",
+		Description: "Test tool",
+		ServiceName: "test-service",
+		InputSchema: map[string]interface{}{"type": "object"},
+	}
+
+	handlerConfig := HandlerConfig{
+		Type:   "http",
+		Method: "POST",
+		Path:   "/test",
+		Authorization: &AuthorizationConfig{
+			Strategy: StrategyBasic,
+			BasicAuth: &BasicAuthConfig{
+				UsernameHeader: "SECREAT_KEY",
+				PasswordHeader: "None",
+			},
+		},
+	}
+
+	serviceConfig := ServiceConfig{
+		BaseURL: mockBackend.URL,
+	}
+
+	handler, err := generateHTTPHandler(&tool, &handlerConfig, serviceConfig)
+	if err != nil {
+		t.Fatalf("Failed to generate handler: %v", err)
+	}
+
+	ctx := context.Background()
+	requestHeaders := map[string]string{
+		"SECREAT_KEY": "my-secret-value",
+	}
+	ctx = auth.WithRequestHeaders(ctx, requestHeaders)
+
+	result, err := handler(ctx, map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Handler failed: %v", err)
+	}
+
+	resultMap := result.(map[string]interface{})
+	authHeader, ok := resultMap["authorization"].(string)
+	if !ok {
+		t.Fatal("Expected authorization header in response")
+	}
+
+	// Should be Basic Auth with only username (no password)
+	expectedEncoded := base64.StdEncoding.EncodeToString([]byte("my-secret-value"))
+	if !strings.Contains(authHeader, expectedEncoded) {
+		t.Errorf("Expected Basic Auth with only username, got %q", authHeader)
+	}
+	// Should not contain colon (no password)
+	if strings.Contains(authHeader, base64.StdEncoding.EncodeToString([]byte("my-secret-value:"))) {
+		t.Errorf("Expected no password in Basic Auth, got %q", authHeader)
 	}
 }
 

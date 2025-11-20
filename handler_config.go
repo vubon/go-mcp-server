@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ const (
 	StrategyPassThrough = "pass-through"
 	StrategyTransform   = "transform"
 	StrategyStatic      = "static"
+	StrategyBasic       = "basic"
 	StrategyNone        = "none"
 )
 
@@ -38,12 +40,44 @@ type TransformConfig struct {
 	ToPrefix   string `json:"toPrefix,omitempty" yaml:"toPrefix,omitempty"`     // e.g., "ApiKey"
 }
 
+// BasicAuthConfig represents configuration for Basic Authentication
+type BasicAuthConfig struct {
+	// Header name in incoming request to extract username value from
+	// If specified, extracts the header value from incoming request and passes it to backend
+	UsernameHeader string `json:"usernameHeader,omitempty" yaml:"usernameHeader,omitempty"`
+
+	// Header name in incoming request to extract password value from
+	// If specified, extracts the header value from incoming request and passes it to backend
+	// Can be "None" or empty to indicate password is not required
+	PasswordHeader string `json:"passwordHeader,omitempty" yaml:"passwordHeader,omitempty"`
+
+	// Username for Basic Auth (legacy, use usernameHeader instead)
+	Username string `json:"username,omitempty" yaml:"username,omitempty"`
+
+	// Password for Basic Auth (legacy, use passwordHeader instead)
+	Password string `json:"password,omitempty" yaml:"password,omitempty"`
+
+	// Environment variable for username (legacy)
+	UsernameEnv string `json:"usernameEnv,omitempty" yaml:"usernameEnv,omitempty"`
+
+	// Environment variable for password (legacy)
+	PasswordEnv string `json:"passwordEnv,omitempty" yaml:"passwordEnv,omitempty"`
+
+	// Pre-encoded Basic Auth value (e.g., "Basic base64(username:password)")
+	// If provided, this takes precedence over username/password
+	EncodedValue string `json:"encodedValue,omitempty" yaml:"encodedValue,omitempty"`
+
+	// Environment variable for pre-encoded Basic Auth value
+	EncodedValueEnv string `json:"encodedValueEnv,omitempty" yaml:"encodedValueEnv,omitempty"`
+}
+
 // AuthorizationConfig represents authorization configuration for handlers or services
 type AuthorizationConfig struct {
-	// Strategy: StrategyPassThrough, StrategyTransform, StrategyStatic, StrategyNone
+	// Strategy: StrategyPassThrough, StrategyTransform, StrategyStatic, StrategyBasic, StrategyNone
 	// - StrategyPassThrough: use incoming Authorization header as-is
 	// - StrategyTransform: transform the header (e.g., Bearer -> API-Key)
 	// - StrategyStatic: use static value from config
+	// - StrategyBasic: use Basic Authentication (username:password encoded as base64)
 	// - StrategyNone: don't add Authorization header
 	Strategy string `json:"strategy" yaml:"strategy"`
 
@@ -58,6 +92,9 @@ type AuthorizationConfig struct {
 
 	// Environment variable for static value
 	StaticValueEnv string `json:"staticValueEnv,omitempty" yaml:"staticValueEnv,omitempty"`
+
+	// For StrategyBasic: Basic Authentication configuration
+	BasicAuth *BasicAuthConfig `json:"basicAuth,omitempty" yaml:"basicAuth,omitempty"`
 }
 
 // ServiceConfig represents configuration for a service
@@ -364,6 +401,96 @@ func transformAuthorization(authHeader string, transform *TransformConfig) strin
 	return authHeader
 }
 
+// extractBasicAuthFromHeaders extracts header values from incoming request when
+// usernameHeader/passwordHeader are specified.
+// Returns a Basic Auth encoded string (e.g., "Basic base64(username:password)").
+// If usernameHeader/passwordHeader are not specified or values not found, returns empty string.
+func extractBasicAuthFromHeaders(ctx context.Context, basicAuth *BasicAuthConfig) string {
+	if basicAuth == nil {
+		return ""
+	}
+
+	// If usernameHeader is specified, extract header values from incoming request and encode as Basic Auth
+	if basicAuth.UsernameHeader != "" {
+		// Extract username from incoming request header (case-insensitive lookup)
+		usernameValue, usernameOk := auth.GetHeaderFromContext(ctx, basicAuth.UsernameHeader)
+		if !usernameOk || usernameValue == "" {
+			return ""
+		}
+
+		// Extract password from incoming request header (if specified and not "None")
+		passwordValue := ""
+		if basicAuth.PasswordHeader != "" && !strings.EqualFold(basicAuth.PasswordHeader, "none") {
+			if pwd, ok := auth.GetHeaderFromContext(ctx, basicAuth.PasswordHeader); ok {
+				passwordValue = pwd
+			}
+		}
+
+		// Encode as Basic Auth: base64(username:password)
+		credentials := usernameValue
+		if passwordValue != "" {
+			credentials = usernameValue + ":" + passwordValue
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(credentials))
+		return "Basic " + encoded
+	}
+
+	return ""
+}
+
+// buildBasicAuth builds a Basic Authentication header value from configuration.
+// Returns "Basic base64(username:password)" format.
+// Resolution order: header extraction > encodedValue/encodedValueEnv > username/password (with env var support)
+func buildBasicAuth(ctx context.Context, basicAuth *BasicAuthConfig) string {
+	if basicAuth == nil {
+		return ""
+	}
+
+	// If usernameHeader is specified, extract from incoming request headers and encode as Basic Auth
+	if basicAuth.UsernameHeader != "" {
+		return extractBasicAuthFromHeaders(ctx, basicAuth)
+	}
+
+	// Check for pre-encoded value first (highest priority)
+	if basicAuth.EncodedValue != "" {
+		// If it already has "Basic " prefix, return as-is, otherwise add it
+		if strings.HasPrefix(basicAuth.EncodedValue, "Basic ") {
+			return basicAuth.EncodedValue
+		}
+		return "Basic " + basicAuth.EncodedValue
+	}
+
+	if basicAuth.EncodedValueEnv != "" {
+		encodedValue := os.Getenv(basicAuth.EncodedValueEnv)
+		if encodedValue != "" {
+			if strings.HasPrefix(encodedValue, "Basic ") {
+				return encodedValue
+			}
+			return "Basic " + encodedValue
+		}
+	}
+
+	// Get username and password (with env var support)
+	username := basicAuth.Username
+	if username == "" && basicAuth.UsernameEnv != "" {
+		username = os.Getenv(basicAuth.UsernameEnv)
+	}
+
+	password := basicAuth.Password
+	if password == "" && basicAuth.PasswordEnv != "" {
+		password = os.Getenv(basicAuth.PasswordEnv)
+	}
+
+	// If both username and password are available, encode them
+	if username != "" && password != "" {
+		credentials := username + ":" + password
+		encoded := base64.StdEncoding.EncodeToString([]byte(credentials))
+		return "Basic " + encoded
+	}
+
+	return ""
+}
+
 // getAuthFromContext extracts authorization from context if available
 func getAuthFromContext(ctx context.Context) (string, bool) {
 	return auth.AuthorizationFromContext(ctx)
@@ -410,6 +537,9 @@ func extractAuthorization(ctx context.Context, handlerConfig, serviceConfig *Aut
 			return os.Getenv(config.StaticValueEnv)
 		}
 		return ""
+
+	case StrategyBasic:
+		return buildBasicAuth(ctx, config.BasicAuth)
 
 	case StrategyNone:
 		return ""

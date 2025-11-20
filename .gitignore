@@ -26,5 +26,5 @@ go.work
 Thumbs.db
 
 # Documentation/Planning
-IMPROVEMENT_PLAN.md
+# Exclude brainstorming folder, but allow other docs
 docs/brainstorming/

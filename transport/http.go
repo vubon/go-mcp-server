@@ -56,6 +56,19 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx = auth.WithAuthorization(ctx, authHeader)
 	}
 
+	// Extract all request headers and add to context (for Basic Auth header extraction)
+	// Store headers with their original case for flexible matching
+	requestHeaders := make(map[string]string)
+	for key, values := range r.Header {
+		if len(values) > 0 {
+			// Store with original key name (preserve case for flexible matching)
+			requestHeaders[key] = values[0]
+		}
+	}
+	if len(requestHeaders) > 0 {
+		ctx = auth.WithRequestHeaders(ctx, requestHeaders)
+	}
+
 	// Handle request with enhanced context
 	resp := t.server.HandleRequest(ctx, &req)
 
