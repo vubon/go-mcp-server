@@ -231,6 +231,11 @@ func (s *Server) RegisterToolsFromJSON(toolsData, handlersData []byte) error {
 		}
 	}
 
+	// Validate configuration before registering
+	if err := validateConfiguration(tools, handlersConfig); err != nil {
+		return err
+	}
+
 	// Calculate hash of configuration
 	configHash := calculateConfigHash(toolsData, handlersData)
 
@@ -271,6 +276,11 @@ func (s *Server) RegisterToolsFromYAML(toolsData, handlersData []byte) error {
 				toolsVersion, handlersConfig.Version,
 			)
 		}
+	}
+
+	// Validate configuration before registering
+	if err := validateConfiguration(tools, handlersConfig); err != nil {
+		return err
 	}
 
 	// Calculate hash of configuration
@@ -342,6 +352,11 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 		}
 	}
 
+	// Validate configuration before registering
+	if err := validateConfiguration(tools, handlersConfig); err != nil {
+		return err
+	}
+
 	// Calculate hash of configuration
 	configHash := calculateConfigHash(toolsData, handlersData)
 
@@ -360,33 +375,36 @@ func (s *Server) RegisterToolsFromFiles(toolsFile, handlersFile string) error {
 	return s.registerToolsFromConfig(tools, handlersConfig)
 }
 
-// registerToolsFromConfig registers tools from parsed configuration.
-func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *HandlersConfig) error {
-	// Validate handlers config
+// validateConfiguration validates the configuration
+func validateConfiguration(tools []ToolFile, handlersConfig *HandlersConfig) error {
 	if handlersConfig == nil {
 		return fmt.Errorf("handlers configuration is nil")
 	}
 
+	result := ValidateConfiguration(tools, handlersConfig)
+	if !result.Valid() {
+		return fmt.Errorf("configuration validation failed:\n%s", result.Error())
+	}
+
+	return nil
+}
+
+// registerToolsFromConfig registers tools from parsed configuration.
+// Note: Validation is done before calling this function
+func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *HandlersConfig) error {
 	// Register each tool
 	for _, toolFile := range tools {
-		// Validate tool
-		if toolFile.Name == "" {
-			return fmt.Errorf("tool name cannot be empty")
-		}
-
-		// Get handler config
+		// Get handler config (already validated)
 		handlerConfig, exists := handlersConfig.Handlers[toolFile.Name]
 		if !exists {
+			// This should not happen if validation passed, but keep as safety check
 			return fmt.Errorf("handler configuration not found for tool: %s", toolFile.Name)
 		}
 
-		// Get service config
-		if toolFile.ServiceName == "" {
-			return fmt.Errorf("service name is required for tool: %s", toolFile.Name)
-		}
-
+		// Get service config (already validated)
 		serviceConfig, exists := handlersConfig.ServiceConfig[toolFile.ServiceName]
 		if !exists {
+			// This should not happen if validation passed, but keep as safety check
 			return fmt.Errorf(
 				"service configuration not found for service: %s (tool: %s)",
 				toolFile.ServiceName, toolFile.Name,
