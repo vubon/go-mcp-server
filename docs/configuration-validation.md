@@ -385,17 +385,36 @@ tool "getUser": method: invalid HTTP method "INVALID"
 
 ## Manual Validation
 
-You can also validate configuration programmatically without registering:
+You can also validate configuration programmatically without registering tools. First, parse your JSON/YAML files, then call `ValidateConfiguration`:
 
 ```go
-import "github.com/vubon/go-mcp-server"
+import (
+    "encoding/json"
+    "github.com/vubon/go-mcp-server"
+)
 
-// Parse files
-tools, _, _ := mcpserver.ParseToolsFromJSON(toolsData)
-handlers, _ := mcpserver.ParseHandlersFromJSON(handlersData)
+// Parse tools JSON (supports both array and wrapped formats)
+var tools []mcpserver.ToolFile
+if err := json.Unmarshal(toolsData, &tools); err != nil {
+    // Try wrapped format
+    var wrapped struct {
+        Version string                `json:"version"`
+        Tools   []mcpserver.ToolFile `json:"tools"`
+    }
+    if err := json.Unmarshal(toolsData, &wrapped); err != nil {
+        log.Fatal("Failed to parse tools:", err)
+    }
+    tools = wrapped.Tools
+}
+
+// Parse handlers JSON
+var handlers mcpserver.HandlersConfig
+if err := json.Unmarshal(handlersData, &handlers); err != nil {
+    log.Fatal("Failed to parse handlers:", err)
+}
 
 // Validate
-result := mcpserver.ValidateConfiguration(tools, handlers)
+result := mcpserver.ValidateConfiguration(tools, &handlers)
 if !result.Valid() {
     for _, err := range result.Errors {
         fmt.Printf("Error: %s\n", err)
@@ -405,6 +424,8 @@ if !result.Valid() {
 
 fmt.Println("✅ Configuration is valid")
 ```
+
+**Note:** For YAML files, use `gopkg.in/yaml.v3` instead of `encoding/json`.
 
 ## Validation Rules Summary
 
