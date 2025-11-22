@@ -18,6 +18,15 @@ Welcome to the MCP Server documentation. This directory contains comprehensive g
   - Environment variable support
   - Best practices
 
+### Configuration Validation
+
+- **[Configuration Validation](./configuration-validation.md)** - Automatic validation of configuration files
+  - Current validation features
+  - How validation works
+  - Common validation errors and fixes
+  - Validation rules and best practices
+  - Troubleshooting guide
+
 ### Authorization
 
 - **[Authorization Strategies](./auth/README.md)** - Comprehensive guide to all authorization strategies
