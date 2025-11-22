@@ -121,8 +121,12 @@ func TestNew(t *testing.T) {
 		if server == nil {
 			t.Fatal("New returned nil")
 		}
-		if server.config.ProtocolVersion != "2024-11-05" {
-			t.Errorf("Expected default protocol version '2024-11-05', got %s", server.config.ProtocolVersion)
+		// Default should be latest stable version (2025-06-18)
+		if server.config.ProtocolVersion != DefaultProtocolVersion {
+			t.Errorf("Expected default protocol version %q, got %s", DefaultProtocolVersion, server.config.ProtocolVersion)
+		}
+		if server.config.ProtocolVersion != SchemaVersion2025_06_18 {
+			t.Errorf("Expected default to be latest stable version %q, got %s", SchemaVersion2025_06_18, server.config.ProtocolVersion)
 		}
 	})
 }

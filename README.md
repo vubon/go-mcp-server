@@ -5,6 +5,7 @@ A reusable Go package for building MCP (Model Context Protocol) servers.
 ## Features
 
 - ✅ MCP protocol compliant
+- ✅ **MCP Schema Version Support** (2024-11-05, 2025-03-26, 2025-06-18)
 - ✅ JSON-RPC 2.0 support
 - ✅ HTTP and Stdio transports
 - ✅ Programmatic and file-based tool registration
@@ -80,9 +81,14 @@ func main() {
 server := mcpserver.New(&mcpserver.Config{
     Name:            "my-server",
     Version:         "1.0.0",
-    ProtocolVersion: "2024-11-05", // optional, defaults to "2024-11-05"
+    ProtocolVersion: mcpserver.SchemaVersion2025_06_18, // optional, defaults to latest (2025-06-18)
 })
 ```
+
+**MCP Schema Versions:**
+- `mcpserver.SchemaVersion2024_11_05` - Initial/legacy version
+- `mcpserver.SchemaVersion2025_03_26` - First major update
+- `mcpserver.SchemaVersion2025_06_18` - Latest stable (default, uses JSON Schema 2020-12)
 
 ### Register Tools
 
