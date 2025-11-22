@@ -13,12 +13,25 @@ import (
 
 // Constants for MCP protocol
 const (
-	DefaultProtocolVersion = "2024-11-05"
-	JSONRPCVersion         = "2.0"
-	ContentTypeText        = "text"
-	ContentTypeJSON        = "application/json"
-	YAMLExtension          = ".yaml"
-	YMLExtension           = ".yml"
+	// MCP Schema Version Constants
+	// These represent the official MCP schema versions from:
+	// https://github.com/modelcontextprotocol/modelcontextprotocol/tree/main/schema
+	SchemaVersion2024_11_05 = "2024-11-05" // Initial/legacy version
+	SchemaVersion2025_03_26 = "2025-03-26" // First major update
+	SchemaVersion2025_06_18 = "2025-06-18" // Latest stable (uses JSON Schema 2020-12)
+
+	// DefaultProtocolVersion is the default MCP protocol version used when not specified
+	// Updated to latest stable version (2025-06-18)
+	DefaultProtocolVersion = SchemaVersion2025_06_18
+
+	// JSON-RPC and content type constants
+	JSONRPCVersion  = "2.0"
+	ContentTypeText = "text"
+	ContentTypeJSON = "application/json"
+
+	// File extension constants
+	YAMLExtension = ".yaml"
+	YMLExtension  = ".yml"
 )
 
 // Config configures an MCP server

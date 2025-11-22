@@ -27,6 +27,14 @@ Welcome to the MCP Server documentation. This directory contains comprehensive g
   - Validation rules and best practices
   - Troubleshooting guide
 
+### MCP Schema Versions
+
+- **[MCP Schema Version Support](./mcp-schema-versions.md)** - Guide to MCP schema version support
+  - Supported versions (2024-11-05, 2025-03-26, 2025-06-18)
+  - How to specify a version
+  - Version compatibility and migration guide
+  - Best practices
+
 ### Authorization
 
 - **[Authorization Strategies](./auth/README.md)** - Comprehensive guide to all authorization strategies
