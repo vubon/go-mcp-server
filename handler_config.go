@@ -27,6 +27,11 @@ const (
 	StrategyNone        = "none"
 )
 
+// Handler type constants
+const (
+	HandlerTypeHTTP = "http"
+)
+
 // Default header name for authorization
 const DefaultAuthHeaderName = "Authorization"
 
@@ -585,7 +590,7 @@ type httpHandlerConfig struct {
 
 // validateHandlerConfig validates handler and service configuration.
 func validateHandlerConfig(tool *ToolFile, handlerConfig *HandlerConfig, serviceConfig ServiceConfig) error {
-	if handlerConfig.Type != "http" {
+	if handlerConfig.Type != HandlerTypeHTTP {
 		return fmt.Errorf("unsupported handler type: %s", handlerConfig.Type)
 	}
 

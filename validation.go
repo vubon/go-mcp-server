@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+const (
+	validationPassedMsg = "validation passed"
+	handlerNotFoundMsg  = "handler not found for tool"
+	handlerNoToolMsg    = "handler has no corresponding tool"
+)
+
 // ValidationError represents a single validation error
 type ValidationError struct {
 	Tool    string // Tool name (if applicable)
@@ -44,7 +50,7 @@ func (r *ValidationResult) AddError(err ValidationError) {
 // Error implements error interface
 func (r *ValidationResult) Error() string {
 	if r.Valid() {
-		return "validation passed"
+		return validationPassedMsg
 	}
 
 	var messages []string
@@ -58,6 +64,14 @@ func (r *ValidationResult) Error() string {
 // This is the main entry point that can be used by both server startup and CLI
 func ValidateConfiguration(tools []ToolFile, handlersConfig *HandlersConfig) *ValidationResult {
 	result := &ValidationResult{}
+
+	// Check for nil handlers config
+	if handlersConfig == nil {
+		result.AddError(ValidationError{
+			Message: "handlers configuration is nil",
+		})
+		return result
+	}
 
 	// Phase 1: Critical validations
 	validateToolHandlerConsistency(tools, handlersConfig, result)
@@ -97,7 +111,7 @@ func validateToolHandlerConsistency(tools []ToolFile, handlersConfig *HandlersCo
 		if _, exists := handlersConfig.Handlers[tool.Name]; !exists {
 			result.AddError(ValidationError{
 				Tool:    tool.Name,
-				Message: fmt.Sprintf("handler not found for tool"),
+				Message: handlerNotFoundMsg,
 			})
 		}
 	}
@@ -107,7 +121,7 @@ func validateToolHandlerConsistency(tools []ToolFile, handlersConfig *HandlersCo
 		if !toolNames[handlerName] {
 			result.AddError(ValidationError{
 				Tool:    handlerName,
-				Message: fmt.Sprintf("handler has no corresponding tool"),
+				Message: handlerNoToolMsg,
 			})
 		}
 	}
@@ -187,7 +201,7 @@ func validateTool(tool *ToolFile, result *ValidationResult) {
 }
 
 // validateHandler validates a single handler
-func validateHandler(handler *HandlerConfig, tool *ToolFile, service ServiceConfig, result *ValidationResult) {
+func validateHandler(handler *HandlerConfig, tool *ToolFile, _ ServiceConfig, result *ValidationResult) {
 	// Handler type is required
 	if handler.Type == "" {
 		result.AddError(ValidationError{
@@ -199,7 +213,7 @@ func validateHandler(handler *HandlerConfig, tool *ToolFile, service ServiceConf
 	}
 
 	// Handler type must be supported
-	if handler.Type != "http" {
+	if handler.Type != HandlerTypeHTTP {
 		result.AddError(ValidationError{
 			Tool:    tool.Name,
 			Field:   "type",
@@ -354,7 +368,10 @@ func validateInputSchema(schema map[string]interface{}) error {
 		}
 	}
 	if !typeValid {
-		return fmt.Errorf("invalid schema type %q (must be one of: object, array, string, number, integer, boolean, null)", schemaType)
+		return fmt.Errorf(
+			"invalid schema type %q (must be one of: object, array, string, number, integer, boolean, null)",
+			schemaType,
+		)
 	}
 
 	// Validate properties if present
@@ -383,7 +400,7 @@ func validateInputSchema(schema map[string]interface{}) error {
 }
 
 // validatePropertySchema validates a single property schema
-func validatePropertySchema(propName string, propSchema map[string]interface{}) error {
+func validatePropertySchema(_ string, propSchema map[string]interface{}) error {
 	propType, ok := propSchema["type"].(string)
 	if !ok {
 		return fmt.Errorf("property must have 'type' field")
@@ -540,7 +557,10 @@ func validateAuthorizationConfig(config *AuthorizationConfig) error {
 	}
 
 	if !strategyValid {
-		return fmt.Errorf("invalid authorization strategy %q (must be one of: pass-through, transform, static, basic, none)", config.Strategy)
+		return fmt.Errorf(
+			"invalid authorization strategy %q (must be one of: pass-through, transform, static, basic, none)",
+			config.Strategy,
+		)
 	}
 
 	// Validate transform config
@@ -559,11 +579,8 @@ func validateAuthorizationConfig(config *AuthorizationConfig) error {
 
 	// Validate basic auth config
 	if config.Strategy == StrategyBasic {
-		if config.BasicAuth == nil {
-			return fmt.Errorf("BasicAuth config is required for basic strategy")
-		}
-		if config.BasicAuth.UsernameHeader == "" && config.BasicAuth.Username == "" && config.BasicAuth.UsernameEnv == "" && config.BasicAuth.EncodedValue == "" && config.BasicAuth.EncodedValueEnv == "" {
-			return fmt.Errorf("BasicAuth must have usernameHeader, username, usernameEnv, encodedValue, or encodedValueEnv")
+		if err := validateBasicAuthConfig(config.BasicAuth); err != nil {
+			return err
 		}
 	}
 
@@ -574,6 +591,23 @@ func validateAuthorizationConfig(config *AuthorizationConfig) error {
 		}
 	}
 
+	return nil
+}
+
+// validateBasicAuthConfig validates BasicAuth configuration
+func validateBasicAuthConfig(basicAuth *BasicAuthConfig) error {
+	if basicAuth == nil {
+		return fmt.Errorf("BasicAuth config is required for basic strategy")
+	}
+	if basicAuth.UsernameHeader == "" &&
+		basicAuth.Username == "" &&
+		basicAuth.UsernameEnv == "" &&
+		basicAuth.EncodedValue == "" &&
+		basicAuth.EncodedValueEnv == "" {
+		return fmt.Errorf(
+			"BasicAuth must have usernameHeader, username, usernameEnv, encodedValue, or encodedValueEnv",
+		)
+	}
 	return nil
 }
 
@@ -653,4 +687,3 @@ func findToolByName(tools []ToolFile, name string) *ToolFile {
 	}
 	return nil
 }
-

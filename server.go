@@ -392,6 +392,10 @@ func validateConfiguration(tools []ToolFile, handlersConfig *HandlersConfig) err
 // registerToolsFromConfig registers tools from parsed configuration.
 // Note: Validation is done before calling this function
 func (s *Server) registerToolsFromConfig(tools []ToolFile, handlersConfig *HandlersConfig) error {
+	if handlersConfig == nil {
+		return fmt.Errorf("handlers configuration is nil")
+	}
+
 	// Register each tool
 	for _, toolFile := range tools {
 		// Get handler config (already validated)
