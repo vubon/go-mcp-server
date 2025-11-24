@@ -14,6 +14,8 @@ A reusable Go package for building MCP (Model Context Protocol) servers.
 - ✅ Path and query parameter substitution
 - ✅ Environment variable support
 - ✅ Flexible timeout and header configuration
+- ✅ Retry logic with exponential backoff and jitter
+- ✅ Circuit breaker pattern for fault tolerance
 
 📚 **[View Full Documentation](./docs/README.md)**
 

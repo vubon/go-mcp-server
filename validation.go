@@ -202,37 +202,50 @@ func validateTool(tool *ToolFile, result *ValidationResult) {
 
 // validateHandler validates a single handler
 func validateHandler(handler *HandlerConfig, tool *ToolFile, _ ServiceConfig, result *ValidationResult) {
-	// Handler type is required
+	if !validateHandlerType(handler, tool, result) {
+		return
+	}
+	if !validateHandlerMethod(handler, tool, result) {
+		return
+	}
+	validateHandlerPath(handler, tool, result)
+	validateHandlerTimeout(handler, tool, result)
+	validateHandlerQueryParams(handler, tool, result)
+	validateHandlerRetry(handler, tool, result)
+	validateHandlerAuthorization(handler, tool, result)
+}
+
+// validateHandlerType validates handler type
+func validateHandlerType(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) bool {
 	if handler.Type == "" {
 		result.AddError(ValidationError{
 			Tool:    tool.Name,
 			Field:   "type",
 			Message: "handler type is required",
 		})
-		return
+		return false
 	}
-
-	// Handler type must be supported
 	if handler.Type != HandlerTypeHTTP {
 		result.AddError(ValidationError{
 			Tool:    tool.Name,
 			Field:   "type",
 			Message: fmt.Sprintf("unsupported handler type %q (only 'http' is supported)", handler.Type),
 		})
-		return
+		return false
 	}
+	return true
+}
 
-	// HTTP method is required
+// validateHandlerMethod validates HTTP method
+func validateHandlerMethod(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) bool {
 	if handler.Method == "" {
 		result.AddError(ValidationError{
 			Tool:    tool.Name,
 			Field:   "method",
 			Message: "HTTP method is required",
 		})
-		return
+		return false
 	}
-
-	// HTTP method must be valid
 	if !isValidHTTPMethod(handler.Method) {
 		result.AddError(ValidationError{
 			Tool:    tool.Name,
@@ -240,8 +253,11 @@ func validateHandler(handler *HandlerConfig, tool *ToolFile, _ ServiceConfig, re
 			Message: fmt.Sprintf("invalid HTTP method %q", handler.Method),
 		})
 	}
+	return true
+}
 
-	// Path or endpoint is required
+// validateHandlerPath validates handler path
+func validateHandlerPath(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) {
 	path := handler.Path
 	if path == "" {
 		path = tool.Endpoint
@@ -252,57 +268,75 @@ func validateHandler(handler *HandlerConfig, tool *ToolFile, _ ServiceConfig, re
 			Field:   "path",
 			Message: "path or endpoint is required",
 		})
-	} else {
-		// Validate path format
-		if err := validatePath(path); err != nil {
-			result.AddError(ValidationError{
-				Tool:    tool.Name,
-				Field:   "path",
-				Message: err.Error(),
-			})
-		}
+		return
+	}
+	if err := validatePath(path); err != nil {
+		result.AddError(ValidationError{
+			Tool:    tool.Name,
+			Field:   "path",
+			Message: err.Error(),
+		})
+	}
+	if err := validatePathParameters(path, tool.InputSchema); err != nil {
+		result.AddError(ValidationError{
+			Tool:    tool.Name,
+			Field:   "path",
+			Message: err.Error(),
+		})
+	}
+}
 
-		// Validate path parameters are in InputSchema
-		if err := validatePathParameters(path, tool.InputSchema); err != nil {
-			result.AddError(ValidationError{
-				Tool:    tool.Name,
-				Field:   "path",
-				Message: err.Error(),
-			})
+// validateHandlerTimeout validates timeout format
+func validateHandlerTimeout(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) {
+	if handler.Timeout == "" {
+		return
+	}
+	if _, err := time.ParseDuration(handler.Timeout); err != nil {
+		result.AddError(ValidationError{
+			Tool:    tool.Name,
+			Field:   "timeout",
+			Message: fmt.Sprintf("invalid timeout format %q: %v", handler.Timeout, err),
+		})
+	}
+}
+
+// validateHandlerQueryParams validates query parameters
+func validateHandlerQueryParams(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) {
+	if handler.QueryParams == nil {
+		return
+	}
+	if err := validateQueryParameters(handler.QueryParams, tool.InputSchema); err != nil {
+		result.AddError(ValidationError{
+			Tool:    tool.Name,
+			Field:   "queryParams",
+			Message: err.Error(),
+		})
+	}
+}
+
+// validateHandlerRetry validates retry configuration
+func validateHandlerRetry(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) {
+	if handler.Retry == nil {
+		return
+	}
+	if errs := validateRetryConfig(handler.Retry, tool.Name, false); len(errs) > 0 {
+		for _, err := range errs {
+			result.AddError(err)
 		}
 	}
+}
 
-	// Validate timeout format (if provided)
-	if handler.Timeout != "" {
-		if _, err := time.ParseDuration(handler.Timeout); err != nil {
-			result.AddError(ValidationError{
-				Tool:    tool.Name,
-				Field:   "timeout",
-				Message: fmt.Sprintf("invalid timeout format %q: %v", handler.Timeout, err),
-			})
-		}
+// validateHandlerAuthorization validates authorization configuration
+func validateHandlerAuthorization(handler *HandlerConfig, tool *ToolFile, result *ValidationResult) {
+	if handler.Authorization == nil {
+		return
 	}
-
-	// Validate query parameters are in InputSchema
-	if handler.QueryParams != nil {
-		if err := validateQueryParameters(handler.QueryParams, tool.InputSchema); err != nil {
-			result.AddError(ValidationError{
-				Tool:    tool.Name,
-				Field:   "queryParams",
-				Message: err.Error(),
-			})
-		}
-	}
-
-	// Validate authorization config (if provided)
-	if handler.Authorization != nil {
-		if err := validateAuthorizationConfig(handler.Authorization); err != nil {
-			result.AddError(ValidationError{
-				Tool:    tool.Name,
-				Field:   "authorization",
-				Message: err.Error(),
-			})
-		}
+	if err := validateAuthorizationConfig(handler.Authorization); err != nil {
+		result.AddError(ValidationError{
+			Tool:    tool.Name,
+			Field:   "authorization",
+			Message: err.Error(),
+		})
 	}
 }
 
@@ -346,6 +380,24 @@ func validateService(name string, service ServiceConfig, result *ValidationResul
 				Field:   "authorization",
 				Message: err.Error(),
 			})
+		}
+	}
+
+	// Validate retry config (if provided)
+	if service.Retry != nil {
+		if errs := validateRetryConfig(service.Retry, name, true); len(errs) > 0 {
+			for _, err := range errs {
+				result.AddError(err)
+			}
+		}
+	}
+
+	// Validate circuit breaker config (if provided)
+	if service.CircuitBreaker != nil {
+		if errs := validateCircuitBreakerConfig(service.CircuitBreaker, name); len(errs) > 0 {
+			for _, err := range errs {
+				result.AddError(err)
+			}
 		}
 	}
 }
@@ -686,4 +738,129 @@ func findToolByName(tools []ToolFile, name string) *ToolFile {
 		}
 	}
 	return nil
+}
+
+// validateRetryConfig validates retry configuration
+func validateRetryConfig(retry *RetryConfig, name string, isService bool) []ValidationError {
+	var errors []ValidationError
+
+	if retry == nil {
+		return errors
+	}
+
+	fieldPrefix := "retry"
+	if retry.MaxAttempts < 1 {
+		if isService {
+			errors = append(errors, ValidationError{
+				Service: name,
+				Field:   fieldPrefix + ".maxAttempts",
+				Message: "must be at least 1",
+			})
+		} else {
+			errors = append(errors, ValidationError{
+				Tool:    name,
+				Field:   fieldPrefix + ".maxAttempts",
+				Message: "must be at least 1",
+			})
+		}
+	}
+
+	if retry.InitialDelay != "" {
+		if _, err := time.ParseDuration(retry.InitialDelay); err != nil {
+			if isService {
+				errors = append(errors, ValidationError{
+					Service: name,
+					Field:   fieldPrefix + ".initialDelay",
+					Message: fmt.Sprintf("invalid duration: %v", err),
+				})
+			} else {
+				errors = append(errors, ValidationError{
+					Tool:    name,
+					Field:   fieldPrefix + ".initialDelay",
+					Message: fmt.Sprintf("invalid duration: %v", err),
+				})
+			}
+		}
+	}
+
+	if retry.MaxDelay != "" {
+		if _, err := time.ParseDuration(retry.MaxDelay); err != nil {
+			if isService {
+				errors = append(errors, ValidationError{
+					Service: name,
+					Field:   fieldPrefix + ".maxDelay",
+					Message: fmt.Sprintf("invalid duration: %v", err),
+				})
+			} else {
+				errors = append(errors, ValidationError{
+					Tool:    name,
+					Field:   fieldPrefix + ".maxDelay",
+					Message: fmt.Sprintf("invalid duration: %v", err),
+				})
+			}
+		}
+	}
+
+	if retry.Multiplier < 1.0 {
+		if isService {
+			errors = append(errors, ValidationError{
+				Service: name,
+				Field:   fieldPrefix + ".multiplier",
+				Message: "must be at least 1.0",
+			})
+		} else {
+			errors = append(errors, ValidationError{
+				Tool:    name,
+				Field:   fieldPrefix + ".multiplier",
+				Message: "must be at least 1.0",
+			})
+		}
+	}
+
+	return errors
+}
+
+// validateCircuitBreakerConfig validates circuit breaker configuration
+func validateCircuitBreakerConfig(cb *CircuitBreakerConfig, serviceName string) []ValidationError {
+	var errors []ValidationError
+
+	if cb == nil {
+		return errors
+	}
+
+	if cb.MaxFailures < 1 {
+		errors = append(errors, ValidationError{
+			Service: serviceName,
+			Field:   "circuitBreaker.maxFailures",
+			Message: "must be at least 1",
+		})
+	}
+
+	if cb.Timeout != "" {
+		if _, err := time.ParseDuration(cb.Timeout); err != nil {
+			errors = append(errors, ValidationError{
+				Service: serviceName,
+				Field:   "circuitBreaker.timeout",
+				Message: fmt.Sprintf("invalid duration: %v", err),
+			})
+		}
+	}
+
+	if cb.HalfOpenMaxCalls < 1 {
+		errors = append(errors, ValidationError{
+			Service: serviceName,
+			Field:   "circuitBreaker.halfOpenMaxCalls",
+			Message: "must be at least 1",
+		})
+	}
+
+	if cb.SuccessThreshold < 1 {
+		errors = append(errors, ValidationError{
+			Service: serviceName,
+			Field:   "circuitBreaker.successThreshold",
+			Message: "must be at least 1",
+		})
+	}
+
+	return errors
 }

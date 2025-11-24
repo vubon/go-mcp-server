@@ -58,7 +58,7 @@ func main() {
 	// Setup routes
 	mux := http.NewServeMux()
 	mux.HandleFunc("/jsonrpc", httpHandler.ServeHTTP)
-	
+
 	// Health check endpoint with configuration info
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		configInfo := server.GetConfigInfo()
