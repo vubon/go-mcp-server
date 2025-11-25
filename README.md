@@ -6,6 +6,7 @@ A reusable Go package for building MCP (Model Context Protocol) servers.
 
 - ✅ MCP protocol compliant
 - ✅ **MCP Schema Version Support** (2024-11-05, 2025-03-26, 2025-06-18)
+- ✅ **Structured Logging** - JSON format, Datadog compatible, async, zero latency
 - ✅ JSON-RPC 2.0 support
 - ✅ HTTP and Stdio transports
 - ✅ Programmatic and file-based tool registration

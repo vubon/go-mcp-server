@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	mcpserver "github.com/vubon/go-mcp-server"
@@ -48,7 +47,14 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log request (excluding sensitive data)
-	log.Printf("📥 JSON-RPC request: method=%s, id=%v", req.Method, req.ID)
+	if logger := t.server.GetLogger(); logger != nil {
+		fields := []mcpserver.Field{
+			{Key: "method", Value: req.Method},
+			{Key: "request_id", Value: req.ID},
+			{Key: "instance_id", Value: mcpserver.GetInstanceID()},
+		}
+		logger.Info("JSON-RPC request received", fields...)
+	}
 
 	// Extract Authorization header and add to context
 	ctx := r.Context()
@@ -79,13 +85,29 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log response
-	log.Printf("📤 JSON-RPC response: id=%v, error=%v", resp.ID, resp.Error != nil)
+	if logger := t.server.GetLogger(); logger != nil {
+		fields := []mcpserver.Field{
+			{Key: "request_id", Value: resp.ID},
+			{Key: "has_error", Value: resp.Error != nil},
+		}
+		if resp.Error != nil {
+			fields = append(fields,
+				mcpserver.Field{Key: "error_code", Value: resp.Error.Code},
+				mcpserver.Field{Key: "error_message", Value: resp.Error.Message},
+			)
+		}
+		logger.Info("JSON-RPC response sent", fields...)
+	}
 
 	// Send response
 	w.Header().Set("Content-Type", mcpserver.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("Error encoding response: %v", err)
+		if logger := t.server.GetLogger(); logger != nil {
+			logger.Error("Error encoding response",
+				mcpserver.Field{Key: "error", Value: err.Error()},
+			)
+		}
 	}
 }
 
@@ -101,7 +123,9 @@ func respondError(w http.ResponseWriter, code int, message, data string, id inte
 	}
 	w.Header().Set("Content-Type", mcpserver.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK) // JSON-RPC uses 200 OK even for errors
+	// Ignore encoding errors in error handler (rare case, can't log it)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("Error encoding error response: %v", err)
+		// Error encoding error response - nothing we can do
+		_ = err
 	}
 }
