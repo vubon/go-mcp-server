@@ -46,60 +46,54 @@ func (t *HTTPTransport) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log request (excluding sensitive data)
-	if logger := t.server.GetLogger(); logger != nil {
-		fields := []mcpserver.Field{
-			{Key: "method", Value: req.Method},
-			{Key: "request_id", Value: req.ID},
-			{Key: "instance_id", Value: mcpserver.GetInstanceID()},
-		}
-		logger.Info("JSON-RPC request received", fields...)
-	}
+	// Extract tool name once (avoid parsing JSON twice)
+	toolName := extractToolName(&req)
 
-	// Extract Authorization header and add to context
-	ctx := r.Context()
-	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
-		ctx = auth.WithAuthorization(ctx, authHeader)
-	}
-
-	// Extract all request headers and add to context (for Basic Auth header extraction)
-	// Store headers with their original case for flexible matching
-	requestHeaders := make(map[string]string)
-	for key, values := range r.Header {
-		if len(values) > 0 {
-			// Store with original key name (preserve case for flexible matching)
-			requestHeaders[key] = values[0]
-		}
-	}
-	if len(requestHeaders) > 0 {
-		ctx = auth.WithRequestHeaders(ctx, requestHeaders)
-	}
-
-	// Handle request with enhanced context
+	logRequest(t.server, &req, toolName)
+	ctx := t.buildContext(r)
 	resp := t.server.HandleRequest(ctx, &req)
 
-	// Notifications (like "initialized") don't require a response
 	if resp == nil {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	// Log response
-	if logger := t.server.GetLogger(); logger != nil {
-		fields := []mcpserver.Field{
-			{Key: "request_id", Value: resp.ID},
-			{Key: "has_error", Value: resp.Error != nil},
-		}
-		if resp.Error != nil {
-			fields = append(fields,
-				mcpserver.Field{Key: "error_code", Value: resp.Error.Code},
-				mcpserver.Field{Key: "error_message", Value: resp.Error.Message},
-			)
-		}
-		logger.Info("JSON-RPC response sent", fields...)
+	logResponse(t.server, resp, toolName)
+	t.sendResponse(w, resp)
+}
+
+// buildContext builds the request context with authorization and headers
+func (t *HTTPTransport) buildContext(r *http.Request) context.Context {
+	ctx := r.Context()
+
+	// Add authorization header if present
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		ctx = auth.WithAuthorization(ctx, authHeader)
 	}
 
-	// Send response
+	// Extract all request headers for flexible header matching
+	// Store headers with their original case for flexible matching
+	requestHeaders := t.extractHeaders(r)
+	if len(requestHeaders) > 0 {
+		ctx = auth.WithRequestHeaders(ctx, requestHeaders)
+	}
+
+	return ctx
+}
+
+// extractHeaders extracts all headers from the request, preserving case
+func (t *HTTPTransport) extractHeaders(r *http.Request) map[string]string {
+	headers := make(map[string]string, len(r.Header))
+	for key, values := range r.Header {
+		if len(values) > 0 {
+			headers[key] = values[0]
+		}
+	}
+	return headers
+}
+
+// sendResponse sends the JSON-RPC response to the client
+func (t *HTTPTransport) sendResponse(w http.ResponseWriter, resp *mcpserver.Response) {
 	w.Header().Set("Content-Type", mcpserver.ContentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
