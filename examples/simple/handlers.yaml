@@ -7,6 +7,19 @@ serviceConfig:
       Content-Type: application/json
       Accept: application/json
       X-API-Key: ${API_KEY}
+    retry:
+      maxAttempts: 3
+      initialDelay: "100ms"
+      maxDelay: "5s"
+      multiplier: 2.0
+      jitter: true
+      retryableStatusCodes: [500, 502, 503, 504]
+      retryableErrors: ["timeout", "connection_refused", "temporary"]
+    circuitBreaker:
+      maxFailures: 5
+      timeout: "60s"
+      halfOpenMaxCalls: 3
+      successThreshold: 2
     authorization:
       strategy: pass-through
       headerName: X-API-Key  # Write incoming Authorization value to X-API-Key header in backend request

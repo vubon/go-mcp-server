@@ -102,12 +102,65 @@ type AuthorizationConfig struct {
 	BasicAuth *BasicAuthConfig `json:"basicAuth,omitempty" yaml:"basicAuth,omitempty"`
 }
 
+// RetryConfig represents configuration for retry logic
+type RetryConfig struct {
+	// Maximum number of retry attempts (including initial attempt)
+	// Default: 1 (no retries)
+	MaxAttempts int `json:"maxAttempts,omitempty" yaml:"maxAttempts,omitempty"`
+
+	// Initial delay before first retry
+	// Default: 100ms
+	InitialDelay string `json:"initialDelay,omitempty" yaml:"initialDelay,omitempty"`
+
+	// Maximum delay between retries
+	// Default: 5s
+	MaxDelay string `json:"maxDelay,omitempty" yaml:"maxDelay,omitempty"`
+
+	// Exponential backoff multiplier
+	// Default: 2.0
+	Multiplier float64 `json:"multiplier,omitempty" yaml:"multiplier,omitempty"`
+
+	// Add jitter to prevent thundering herd
+	// Default: true
+	Jitter bool `json:"jitter,omitempty" yaml:"jitter,omitempty"`
+
+	// HTTP status codes that should trigger retry
+	// Default: [500, 502, 503, 504]
+	RetryableStatusCodes []int `json:"retryableStatusCodes,omitempty" yaml:"retryableStatusCodes,omitempty"`
+
+	// Error types that should trigger retry
+	// Options: "timeout", "connection_refused", "temporary", "network"
+	// Default: ["timeout", "connection_refused", "temporary"]
+	RetryableErrors []string `json:"retryableErrors,omitempty" yaml:"retryableErrors,omitempty"`
+}
+
+// CircuitBreakerConfig represents configuration for circuit breaker
+type CircuitBreakerConfig struct {
+	// Maximum number of consecutive failures before opening circuit
+	// Default: 5
+	MaxFailures int `json:"maxFailures,omitempty" yaml:"maxFailures,omitempty"`
+
+	// Duration to keep circuit open before attempting half-open
+	// Default: 60s
+	Timeout string `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+
+	// Maximum number of calls in half-open state
+	// Default: 3
+	HalfOpenMaxCalls int `json:"halfOpenMaxCalls,omitempty" yaml:"halfOpenMaxCalls,omitempty"`
+
+	// Number of successful calls needed to close circuit from half-open
+	// Default: 2
+	SuccessThreshold int `json:"successThreshold,omitempty" yaml:"successThreshold,omitempty"`
+}
+
 // ServiceConfig represents configuration for a service
 type ServiceConfig struct {
-	BaseURL       string               `json:"baseURL" yaml:"baseURL"`
-	Timeout       string               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Headers       map[string]string    `json:"headers,omitempty" yaml:"headers,omitempty"`
-	Authorization *AuthorizationConfig `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+	BaseURL        string                `json:"baseURL" yaml:"baseURL"`
+	Timeout        string                `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Headers        map[string]string     `json:"headers,omitempty" yaml:"headers,omitempty"`
+	Authorization  *AuthorizationConfig  `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+	Retry          *RetryConfig          `json:"retry,omitempty" yaml:"retry,omitempty"`
+	CircuitBreaker *CircuitBreakerConfig `json:"circuitBreaker,omitempty" yaml:"circuitBreaker,omitempty"`
 }
 
 // HandlerConfig represents configuration for a handler
@@ -119,6 +172,7 @@ type HandlerConfig struct {
 	Headers       map[string]string    `json:"headers,omitempty" yaml:"headers,omitempty"`
 	Timeout       string               `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	Authorization *AuthorizationConfig `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+	Retry         *RetryConfig         `json:"retry,omitempty" yaml:"retry,omitempty"`
 }
 
 // HandlersConfig represents the complete handlers configuration
@@ -577,15 +631,17 @@ func getAuthHeaderName(handlerConfig, serviceConfig *AuthorizationConfig) string
 
 // httpHandlerConfig holds resolved configuration for HTTP handler
 type httpHandlerConfig struct {
-	baseURL      string
-	pathTemplate string
-	queryParams  map[string]string
-	method       string
-	timeout      time.Duration
-	headers      map[string]string
-	authConfig   *AuthorizationConfig
-	serviceAuth  *AuthorizationConfig
-	client       *http.Client
+	baseURL        string
+	pathTemplate   string
+	queryParams    map[string]string
+	method         string
+	timeout        time.Duration
+	headers        map[string]string
+	authConfig     *AuthorizationConfig
+	serviceAuth    *AuthorizationConfig
+	client         *http.Client
+	retryConfig    *RetryConfig
+	circuitBreaker *CircuitBreaker
 }
 
 // validateHandlerConfig validates handler and service configuration.
@@ -647,16 +703,29 @@ func resolveHandlerConfig(
 		}
 	}
 
+	// Resolve retry config: handler > service > default (no retry)
+	retryConfig := resolveRetryConfig(handlerConfig, serviceConfig)
+
+	// Get or create circuit breaker
+	var circuitBreaker *CircuitBreaker
+	if serviceConfig.CircuitBreaker != nil {
+		circuitBreaker = globalCBManager.GetCircuitBreaker(
+			tool.ServiceName, serviceConfig.CircuitBreaker,
+		)
+	}
+
 	return &httpHandlerConfig{
-		baseURL:      serviceConfig.BaseURL,
-		pathTemplate: pathTemplate,
-		queryParams:  queryParams,
-		method:       handlerConfig.Method,
-		timeout:      handlerTimeout,
-		headers:      mergedHeaders,
-		authConfig:   handlerConfig.Authorization,
-		serviceAuth:  serviceConfig.Authorization,
-		client:       client,
+		baseURL:        serviceConfig.BaseURL,
+		pathTemplate:   pathTemplate,
+		queryParams:    queryParams,
+		method:         handlerConfig.Method,
+		timeout:        handlerTimeout,
+		headers:        mergedHeaders,
+		authConfig:     handlerConfig.Authorization,
+		serviceAuth:    serviceConfig.Authorization,
+		client:         client,
+		retryConfig:    retryConfig,
+		circuitBreaker: circuitBreaker,
 	}
 }
 
@@ -771,10 +840,19 @@ func generateHTTPHandler(
 			return nil, err
 		}
 
-		// Make HTTP request
-		resp, err := cfg.client.Do(req)
+		// Make HTTP request with retry and circuit breaker
+		resp, err := cfg.executeWithRetry(ctx, req)
 		if err != nil {
+			// Record failure for circuit breaker
+			if cfg.circuitBreaker != nil {
+				cfg.circuitBreaker.OnFailure()
+			}
 			return nil, fmt.Errorf("HTTP request failed: %w", err)
+		}
+
+		// Record success for circuit breaker
+		if cfg.circuitBreaker != nil {
+			cfg.circuitBreaker.OnSuccess()
 		}
 
 		// Handle response

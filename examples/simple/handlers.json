@@ -12,6 +12,21 @@
       "authorization": {
         "strategy": "pass-through",
         "headerName": "X-API-Key"
+      },
+      "retry": {
+        "maxAttempts": 3,
+        "initialDelay": "100ms",
+        "maxDelay": "5s",
+        "multiplier": 2.0,
+        "jitter": true,
+        "retryableStatusCodes": [500, 502, 503, 504],
+        "retryableErrors": ["timeout", "connection_refused", "temporary"]
+      },
+      "circuitBreaker": {
+        "maxFailures": 5,
+        "timeout": "60s",
+        "halfOpenMaxCalls": 3,
+        "successThreshold": 2
       }
     }
   },

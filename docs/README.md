@@ -44,6 +44,13 @@ Welcome to the MCP Server documentation. This directory contains comprehensive g
   - [Basic](./auth/basic.md) - Basic Authentication encoding
   - [None](./auth/none.md) - Explicitly disable authorization
 
+### Resilience
+
+- **[Retry and Circuit Breaker](./resilience.md)** - Guide to retry logic and circuit breaker patterns
+  - Retry configuration (exponential backoff, jitter)
+  - Circuit breaker configuration (failure threshold, recovery)
+  - Best practices and troubleshooting
+
 ## Examples
 
 - **[HTTP Server Example](../examples/simple/)** - Complete HTTP server with file-based registration
