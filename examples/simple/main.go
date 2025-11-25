@@ -10,10 +10,17 @@ import (
 )
 
 func main() {
-	// Create server
+	// Create structured logger
+	logger := mcpserver.NewLogger(&mcpserver.LoggerConfig{
+		Level:  "info",
+		Format: "json",
+	})
+
+	// Create server with logger
 	server := mcpserver.New(&mcpserver.Config{
 		Name:    "greeter",
 		Version: "1.0.0",
+		Logger:  logger,
 	})
 
 	// Register tools from JSON/YAML files
@@ -25,8 +32,13 @@ func main() {
 
 	// Log configuration version info
 	configInfo := server.GetConfigInfo()
-	log.Printf("📋 Configuration loaded: version=%s, hash=%s, tools=%d",
-		configInfo["version"], configInfo["hash"], configInfo["toolCount"])
+	if logger := server.GetLogger(); logger != nil {
+		logger.Info("Configuration loaded",
+			mcpserver.F("version", configInfo["version"]),
+			mcpserver.F("hash", configInfo["hash"]),
+			mcpserver.F("tool_count", configInfo["toolCount"]),
+		)
+	}
 
 	// Alternative: Manual tool registration (commented out)
 	// server.RegisterTool("greet", mcpserver.Tool{
@@ -71,7 +83,11 @@ func main() {
 	})
 
 	port := "8080"
-	log.Printf("🚀 MCP Greeter Server starting on port %s", port)
-	log.Printf("📡 JSON-RPC endpoint: http://localhost:%s/jsonrpc", port)
+	if logger := server.GetLogger(); logger != nil {
+		logger.Info("MCP Greeter Server starting",
+			mcpserver.F("port", port),
+			mcpserver.F("endpoint", "http://localhost:"+port+"/jsonrpc"),
+		)
+	}
 	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
