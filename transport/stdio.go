@@ -93,6 +93,12 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 				continue
 			}
 
+			// Extract tool name once (avoid parsing JSON twice)
+			toolName := extractToolName(&req)
+
+			// Log request
+			logRequest(t.server, &req, toolName)
+
 			// Handle request
 			resp := t.server.HandleRequest(ctx, &req)
 
@@ -100,6 +106,9 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 			if resp == nil {
 				continue
 			}
+
+			// Log response
+			logResponse(t.server, resp, toolName)
 
 			// Send response
 			if err := t.sendResponse(resp); err != nil {
