@@ -35,6 +35,17 @@ Welcome to the MCP Server documentation. This directory contains comprehensive g
   - Version compatibility and migration guide
   - Best practices
 
+### Structured Logging
+
+- **[Structured Logging](./logging.md)** - Comprehensive logging guide
+  - Quick start and basic usage
+  - Log levels and formats
+  - Datadog integration
+  - Performance considerations
+  - Distributed systems support
+  - Using your own logger
+  - Best practices and troubleshooting
+
 ### Authorization
 
 - **[Authorization Strategies](./auth/README.md)** - Comprehensive guide to all authorization strategies

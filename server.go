@@ -39,6 +39,7 @@ type Config struct {
 	Name            string
 	Version         string
 	ProtocolVersion string // default: DefaultProtocolVersion
+	Logger          Logger // Optional logger
 }
 
 // Server handles MCP tool calls
@@ -48,6 +49,7 @@ type Server struct {
 	handlers      map[string]ToolHandler
 	configVersion string // Version of loaded configuration
 	configHash    string // Hash of loaded configuration (tools + handlers)
+	logger        Logger // Logger instance
 }
 
 // New creates a new MCP server
@@ -56,13 +58,38 @@ func New(config *Config) *Server {
 		config.ProtocolVersion = DefaultProtocolVersion
 	}
 
+	// Create logger with service name and version context if logger is provided
+	var logger Logger
+	if config.Logger != nil {
+		logger = config.Logger.WithFields(
+			Field{Key: "service", Value: config.Name},
+			Field{Key: "version", Value: config.Version},
+		)
+	}
+
 	return &Server{
 		config:        config,
 		tools:         make(map[string]Tool),
 		handlers:      make(map[string]ToolHandler),
 		configVersion: "",
 		configHash:    "",
+		logger:        logger,
 	}
+}
+
+// GetLogger returns the logger instance
+func (s *Server) GetLogger() Logger {
+	return s.logger
+}
+
+// GetName returns the server name
+func (s *Server) GetName() string {
+	return s.config.Name
+}
+
+// GetVersion returns the server version
+func (s *Server) GetVersion() string {
+	return s.config.Version
 }
 
 // RegisterTool registers a tool with the server.

@@ -4,16 +4,11 @@ A reusable Go package for building MCP (Model Context Protocol) servers.
 
 ## Features
 
-- ✅ MCP protocol compliant
-- ✅ **MCP Schema Version Support** (2024-11-05, 2025-03-26, 2025-06-18)
-- ✅ JSON-RPC 2.0 support
-- ✅ HTTP and Stdio transports
-- ✅ Programmatic and file-based tool registration
-- ✅ Auto-generated HTTP handlers from configuration
-- ✅ Multiple authorization strategies (pass-through, transform, static, basic, none)
-- ✅ Path and query parameter substitution
-- ✅ Environment variable support
-- ✅ Flexible timeout and header configuration
+- ✅ **MCP Protocol Compliant** - Full support for MCP schema versions (2024-11-05, 2025-03-26, 2025-06-18)
+- ✅ **Structured Logging** - JSON format, Datadog compatible, async, zero latency
+- ✅ **File-Based & Programmatic Configuration** - Declarative tool registration via JSON/YAML or programmatic API
+- ✅ **Multiple Transports** - HTTP and Stdio support
+- ✅ **Authorization Strategies** - Flexible auth handling (pass-through, transform, static, basic, none)
 
 📚 **[View Full Documentation](./docs/README.md)**
 

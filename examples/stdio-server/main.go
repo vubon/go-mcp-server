@@ -13,10 +13,17 @@ import (
 )
 
 func main() {
-	// Create server
+	// Create structured logger
+	logger := mcpserver.NewLogger(&mcpserver.LoggerConfig{
+		Level:  "info",
+		Format: "json",
+	})
+
+	// Create server with logger
 	server := mcpserver.New(&mcpserver.Config{
 		Name:    "greeter-stdio",
 		Version: "1.0.0",
+		Logger:  logger,
 	})
 
 	// Register a simple greet tool
@@ -56,14 +63,24 @@ func main() {
 
 	go func() {
 		<-sigChan
-		log.Println("Shutting down...")
+		if logger := server.GetLogger(); logger != nil {
+			logger.Info("Shutting down...")
+		}
 		cancel()
 	}()
 
 	// Run the transport (blocks until context is cancelled)
-	log.Println("🚀 MCP Greeter Server (stdio) starting...")
-	log.Println("📡 Listening on stdin/stdout")
+	if logger := server.GetLogger(); logger != nil {
+		logger.Info("MCP Greeter Server (stdio) starting",
+			mcpserver.F("transport", "stdio"),
+		)
+	}
 	if err := stdioTransport.Run(ctx); err != nil && err != context.Canceled {
+		if logger := server.GetLogger(); logger != nil {
+			logger.Error("Transport error",
+				mcpserver.F("error", err.Error()),
+			)
+		}
 		log.Fatalf("Transport error: %v", err)
 	}
 }

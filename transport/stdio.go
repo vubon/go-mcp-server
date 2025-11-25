@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 
 	mcpserver "github.com/vubon/go-mcp-server"
@@ -85,7 +84,11 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 					ID: nil,
 				}
 				if err := t.sendResponse(resp); err != nil {
-					log.Printf("Error sending parse error response: %v", err)
+					if logger := t.server.GetLogger(); logger != nil {
+						logger.Error("Error sending parse error response",
+							mcpserver.Field{Key: "error", Value: err.Error()},
+						)
+					}
 				}
 				continue
 			}
@@ -100,7 +103,11 @@ func (t *StdioTransport) Run(ctx context.Context) error {
 
 			// Send response
 			if err := t.sendResponse(resp); err != nil {
-				log.Printf("Error sending response: %v", err)
+				if logger := t.server.GetLogger(); logger != nil {
+					logger.Error("Error sending response",
+						mcpserver.Field{Key: "error", Value: err.Error()},
+					)
+				}
 				return err
 			}
 		}
